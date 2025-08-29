@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(prm:*)",
+      "Bash(chmod:*)",
+      "Bash(bash .claude/scripts/prm:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
