@@ -170,7 +170,7 @@ gh auth login
   * → GitHub.com 선택
   * → HTTPS 선택
   * → Y (인증)
-  * → Login with a web browser 선택
+  * → Paste an authentication token 선택
 
 -----
 
