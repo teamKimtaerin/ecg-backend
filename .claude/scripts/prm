@@ -1,6 +1,10 @@
 #!/bin/bash
 # 대화형 PR 생성 도구 - Claude Code와 함께 사용
 
+# 한국어 로케일 설정
+export LANG=ko_KR.UTF-8
+export LC_ALL=ko_KR.UTF-8
+
 SUMMARY="$1"
 
 if [ -z "$SUMMARY" ]; then
