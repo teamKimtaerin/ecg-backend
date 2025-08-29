@@ -143,9 +143,13 @@ if command -v pbcopy &> /dev/null; then
     echo "$CLAUDE_PROMPT" | pbcopy
     echo "✅ 프롬프트가 클립보드에 복사되었습니다! (macOS)"
 elif command -v clip &> /dev/null; then
-    # Windows (Git Bash, PowerShell)
+    # Windows (PowerShell, CMD, Git Bash 일부)
     echo "$CLAUDE_PROMPT" | clip
-    echo "✅ 프롬프트가 클립보드에 복사되었습니다! (Windows)"
+    echo "✅ 프롬프트가 클립보드에 복사되었습니다! (Windows - clip)"
+elif command -v win32yank.exe &> /dev/null; then
+    # Git Bash / WSL 환경에서 많이 쓰는 도구
+    echo "$CLAUDE_PROMPT" | win32yank.exe -i
+    echo "✅ 프롬프트가 클립보드에 복사되었습니다! (Windows - win32yank)"
 else
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo "🤖 Claude Code 프롬프트:"
