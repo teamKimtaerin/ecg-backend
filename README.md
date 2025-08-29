@@ -129,78 +129,47 @@ uvicorn app.main:app --reload
 
 🤖 Generated with Claude Code
 
-````markdown
-# 🚀 PR 자동화 도구 - 팀원 설정 가이드
+🚀 PR 자동화 도구 - 팀원 설정 가이드 0. Github CLI 설치
+brew install gh # macOS
+winget install Github.cli # Windows
 
-## 0. Github CLI 설치
+1. 최신 코드 받기
+   git pull origin main
+2. 설치 스크립트 실행 (한 번만)
+   chmod +x install.sh
+   ./install.sh
+3. PATH 적용 (설치 후 한 번만)
+   source ~/.zshrc # zsh 사용자 (macOS 기본)
+   source ~/.bashrc # bash 사용자
+4. GitHub CLI 로그인 (각자 개인 계정으로)
+   gh auth login
 
-```bash
-brew install gh      # macOS
-winget install Github.cli  # Windows
-```
-````
+# → GitHub.com 선택
 
-## 1. 최신 코드 받기
+# → HTTPS 선택
 
-```bash
-git pull origin main
-```
+# → Y (인증)
 
-## 2. 설치 스크립트 실행 (한 번만)
+# → Login with a web browser 선택
 
-```bash
-chmod +x install.sh
-./install.sh
-```
+5. 사용 시작!
 
-## 3. PATH 적용 (설치 후 한 번만)
-
-```bash
-source ~/.zshrc  # zsh 사용자 (macOS 기본)
-source ~/.bashrc # bash 사용자
-```
-
-## 4. GitHub CLI 로그인 (각자 개인 계정으로)
-
-```bash
-gh auth login
-```
-
-- GitHub.com 선택
-- HTTPS 선택
-- Y (인증)
-- **Login with a web browser** 선택
-
-## 5. 사용 시작!
-
-```bash
 # 작업 후 변경사항 추가
+
 git add .
 
 # PR 생성 (자동 커밋 + 푸시 + Claude 분석 + PR)
-prm "Feat: 첫 번째 테스트 PR"  # ⚠️ pr이 아닌 prm 사용!
-```
 
----
-
-## 📝 사용 흐름!
-
-1. 코드 작업 → 기능 구현
-2. `git add .` → 변경사항 스테이징
-3. `prm "작업 내용"` → 자동 커밋/푸시
-4. Claude Code 분석
-5. 클립보드에 자동 복사된 프롬프트를 [claude.ai/code](https://claude.ai/code) 에 붙여넣기
-6. 생성된 PR 내용 복사
-7. 터미널에 붙여넣기 → PR 자동 생성!
-
----
-
-## ⚠️ 주의사항
-
-- 명령어는 `pr`이 아닌 **`prm` (PR Make)**
-- 작업은 **feature 브랜치**에서 (main 브랜치 X)
-- Claude Code 접속: [https://claude.ai/code](https://claude.ai/code)
-
-```
-
-```
+prm "Feat: 첫 번째 테스트 PR" # ⚠️ pr이 아닌 prm 사용!\*
+📝 사용 흐름
+코드 작업 → 기능 구현
+git add . → 변경사항 스테이징
+prm "작업 내용" → 자동 커밋/푸시
+Claude Code 분석
+클립보드에 자동 복사된 프롬프트를 claude.ai/code에 붙여넣기
+생성된 PR 내용 복사
+터미널에 붙여넣기 → PR 자동 생성!
+⚠️ 주의사항
+명령어는 pr이 아닌 prm (PR Make)
+작업은 feature 브랜치에서 (main 브랜치 X)
+Claude Code 접속: https://claude.ai/code
