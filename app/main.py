@@ -12,18 +12,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 @app.get("/")
 async def root():
     return {"message": "Hello World from Docker!"}
+
 
 @app.get("/health")
 async def health_check():
     return {"status": "healthy", "service": "backend"}
 
+
 @app.get("/api/test")
 async def test_endpoint():
     return {"data": "This is a test endpoint", "docker": True}
 
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+
+    uvicorn.run(app, host="0.0.0.0", port=8000)  # nosec B104
