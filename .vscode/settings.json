@@ -1,0 +1,37 @@
+{
+  // Python 설정
+  "python.defaultInterpreterPath": "python3",
+  
+  // 저장 시 자동 포맷팅
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.organizeImports": "explicit"
+  },
+  
+  // Python 포맷터 설정
+  "[python]": {
+    "editor.defaultFormatter": "ms-python.black-formatter",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": "explicit"
+    }
+  },
+  
+  // Black 포맷터 설정
+  "black-formatter.args": ["--line-length=88"],
+  
+  // isort 설정 (import 정렬)
+  "isort.args": ["--profile", "black"],
+  
+  // Ruff 설정
+  "ruff.args": ["--fix"],
+  
+  // MyPy 설정
+  "python.linting.mypyEnabled": true,
+  "python.linting.enabled": true,
+  
+  // 추가 설정
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+  "editor.rulers": [88]
+}
