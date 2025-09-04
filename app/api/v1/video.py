@@ -272,7 +272,6 @@ async def get_mock_result(job_id: str):
     시연용: JSON 파일에서 결과 반환
     """
     import json
-    import os
     from pathlib import Path
 
     # JSON 파일 경로 설정
