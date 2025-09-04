@@ -1,31 +1,37 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from app.api.v1.routers import api_router
+import os
 
-app = FastAPI(title="Test FastAPI", version="1.0.0")
+app = FastAPI(title="ECG Backend API", version="1.0.0")
 
-# CORS 설정
+# CORS 설정 - 환경변수에서 허용된 origins 읽기
+cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# API 라우터 등록
+app.include_router(api_router)
+
 
 @app.get("/")
 async def root():
-    return {"message": "Hello World from Docker!"}
+    return {"message": "ECG Backend API", "version": "1.0.0"}
 
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy", "service": "backend"}
+    return {"status": "healthy", "service": "ECG Backend"}
 
 
 @app.get("/api/test")
 async def test_endpoint():
-    return {"data": "This is a test endpoint", "docker": True}
+    return {"data": "ECG Backend Test", "demo_mode": True}
 
 
 if __name__ == "__main__":
