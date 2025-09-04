@@ -13,8 +13,14 @@ services:
       # FastAPI 환경변수
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
-      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,https://d31nzc58rhgh3i.cloudfront.net}
       - DATABASE_URL=${DATABASE_URL:-sqlite:///./app.db}
+      # AWS S3 환경변수
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${AWS_REGION}
+      - S3_BUCKET_NAME=${S3_BUCKET_NAME}
+      - S3_PRESIGNED_URL_EXPIRE=${S3_PRESIGNED_URL_EXPIRE}
     volumes:
       # 개발모드에서만 볼륨 마운트
       - .:/app
@@ -23,7 +29,6 @@ services:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
-      start-period: 30s
       retries: 3
     networks:
       - ecg-network
