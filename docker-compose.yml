@@ -1,6 +1,26 @@
 version: "3.8"
 
 services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=${DB_USER:-ecg_user}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-ecg_password}
+      - POSTGRES_DB=${DB_NAME:-ecg_db}
+      - POSTGRES_HOST_AUTH_METHOD=trust
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - ecg-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-ecg_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   backend:
     build:
       context: .
@@ -14,7 +34,7 @@ services:
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,https://d31nzc58rhgh3i.cloudfront.net}
-      - DATABASE_URL=${DATABASE_URL:-sqlite:///./app.db}
+      - DATABASE_URL=${DATABASE_URL:-postgresql://ecg_user:ecg_password@postgres:5432/ecg_db}
       # AWS S3 환경변수
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
@@ -30,8 +50,15 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    depends_on:
+      postgres:
+        condition: service_healthy
     networks:
       - ecg-network
+
+volumes:
+  postgres_data:
+    driver: local
 
 networks:
   ecg-network:

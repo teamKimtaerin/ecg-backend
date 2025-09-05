@@ -29,7 +29,14 @@ class Settings(BaseSettings):
     model_server_url: str = Field(..., description="Model server URL")
 
     # Database Settings
-    database_url: str = Field(default="sqlite:///./app.db", description="Database URL")
+    database_url: str = Field(
+        default="postgresql://ecg_user:ecg_password@localhost:5432/ecg_db",
+        description="Database URL"
+    )
+    db_user: str = Field(default="ecg_user", description="Database username")
+    db_password: str = Field(default="ecg_password", description="Database password")
+    db_name: str = Field(default="ecg_db", description="Database name")
+    db_port: int = Field(default=5432, description="Database port")
 
     class Config:
         env_file = ".env"
