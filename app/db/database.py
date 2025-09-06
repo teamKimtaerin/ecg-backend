@@ -8,7 +8,7 @@ engine = create_engine(
     settings.database_url,
     pool_pre_ping=True,  # 연결 확인
     pool_size=10,  # 연결 풀 크기
-    max_overflow=20  # 최대 오버플로우
+    max_overflow=20,  # 최대 오버플로우
 )
 
 # 세션 팩토리 생성

@@ -1,4 +1,3 @@
-import os
 from typing import List, Union
 from pydantic_settings import BaseSettings
 from pydantic import Field, validator
@@ -17,10 +16,10 @@ class Settings(BaseSettings):
         default="http://localhost:3000", description="CORS allowed origins"
     )
 
-    @validator('cors_origins', pre=True)
+    @validator("cors_origins", pre=True)
     def parse_cors_origins(cls, v):
         if isinstance(v, str):
-            return [origin.strip() for origin in v.split(',')]
+            return [origin.strip() for origin in v.split(",")]
         return v
 
     # AWS Settings
@@ -40,7 +39,7 @@ class Settings(BaseSettings):
     # Database Settings
     database_url: str = Field(
         default="postgresql://ecg_user:ecg_password@localhost:5432/ecg_db",
-        description="Database URL"
+        description="Database URL",
     )
     db_user: str = Field(default="ecg_user", description="Database username")
     db_password: str = Field(default="ecg_password", description="Database password")
