@@ -2,10 +2,12 @@ from fastapi import APIRouter, HTTPException, Depends, status, Request
 from fastapi.responses import RedirectResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
+from authlib.integrations.base_client.errors import OAuthError
 from app.db.database import get_db
 from app.schemas.user import UserCreate, UserLogin, UserResponse, Token
-from app.services.auth_service import auth_service
-from app.models.user import User
+from app.services.auth_service import auth_service, oauth
+from app.models.user import User, AuthProvider
+from app.core.config import settings
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 security = HTTPBearer()
@@ -118,6 +120,79 @@ async def get_current_user(
         )
 
     return UserResponse.from_orm(user)
+
+
+@router.get("/google/login")
+async def google_login(request: Request):
+    """
+    Google OAuth 로그인 시작
+    - Google 로그인 페이지로 리디렉션
+    """
+    google = oauth.create_client('google')
+    redirect_uri = settings.google_redirect_uri
+
+    return await google.authorize_redirect(request, redirect_uri)
+
+
+@router.get("/google/callback", response_model=Token)
+async def google_callback(request: Request, db: Session = Depends(get_db)):
+    """
+    Google OAuth 콜백 처리
+    - Google에서 돌아온 인증 정보로 사용자 로그인/회원가입 처리
+    """
+    try:
+        google = oauth.create_client('google')
+        token = await google.authorize_access_token(request)
+
+        # Google 사용자 정보 가져오기
+        user_info = await auth_service.get_google_user_info(token['access_token'])
+
+        google_id = user_info['id']
+        email = user_info['email']
+        username = user_info.get('name', email.split('@')[0])
+
+        # 기존 OAuth 사용자 확인
+        user = auth_service.get_user_by_oauth_id(db, google_id, AuthProvider.GOOGLE)
+
+        if not user:
+            # 이메일로 기존 사용자 확인 (로컬 계정이 있는 경우)
+            existing_user = auth_service.get_user_by_email(db, email)
+            if existing_user and existing_user.auth_provider == AuthProvider.LOCAL:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"이미 '{email}' 계정으로 가입된 사용자가 있습니다. 일반 로그인을 사용해주세요."
+                )
+
+            # 새 OAuth 사용자 생성
+            user = auth_service.create_oauth_user(
+                db=db,
+                email=email,
+                username=username,
+                oauth_id=google_id,
+                provider=AuthProvider.GOOGLE
+            )
+
+        # JWT 토큰 생성
+        access_token = auth_service.create_access_token(
+            data={"user_id": user.id, "email": user.email}
+        )
+
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "user": UserResponse.from_orm(user)
+        }
+
+    except OAuthError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Google OAuth 인증 실패: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Google 로그인 처리 중 오류가 발생했습니다: {str(e)}"
+        )
 
 
 # 헤더에서 토큰 추출하는 헬퍼 함수

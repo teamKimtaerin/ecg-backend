@@ -56,6 +56,11 @@ class Settings(BaseSettings):
         default=1440, description="JWT token expiration time in minutes"
     )
 
+    # Google OAuth Settings
+    google_client_id: str = Field(..., description="Google OAuth client ID")
+    google_client_secret: str = Field(..., description="Google OAuth client secret")
+    google_redirect_uri: str = Field(..., description="Google OAuth redirect URI")
+
     class Config:
         env_file = ".env"
         case_sensitive = False

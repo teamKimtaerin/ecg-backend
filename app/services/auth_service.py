@@ -1,10 +1,14 @@
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, Dict, Any
 from passlib.context import CryptContext
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
-from app.models.user import User
+from authlib.integrations.starlette_client import OAuth
+from authlib.integrations.base_client.errors import OAuthError
+import httpx
+from app.models.user import User, AuthProvider
 from app.schemas.user import UserCreate
+from app.core.config import settings
 import os
 
 # 비밀번호 암호화 설정
@@ -89,7 +93,63 @@ class AuthService:
     def get_user_by_username(db: Session, username: str) -> Optional[User]:
         """사용자명으로 사용자 조회"""
         return db.query(User).filter(User.username == username).first()
+    
+    @staticmethod
+    def get_user_by_oauth_id(db: Session, oauth_id: str, provider: AuthProvider) -> Optional[User]:
+        """OAuth ID로 사용자 조회"""
+        return db.query(User).filter(
+            User.oauth_id == oauth_id, 
+            User.auth_provider == provider
+        ).first()
+    
+    @staticmethod
+    async def get_google_user_info(access_token: str) -> Dict[str, Any]:
+        """Google OAuth 토큰으로 사용자 정보 가져오기"""
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                "https://www.googleapis.com/oauth2/v2/userinfo",
+                headers={"Authorization": f"Bearer {access_token}"}
+            )
+            response.raise_for_status()
+            return response.json()
+    
+    @staticmethod
+    def create_oauth_user(
+        db: Session, 
+        email: str, 
+        username: str, 
+        oauth_id: str, 
+        provider: AuthProvider
+    ) -> User:
+        """OAuth 사용자 생성"""
+        db_user = User(
+            username=username,
+            email=email,
+            password_hash=None,  # OAuth 사용자는 비밀번호 없음
+            auth_provider=provider,
+            oauth_id=oauth_id,
+            is_verified=True  # OAuth 사용자는 이미 인증됨
+        )
+        
+        db.add(db_user)
+        db.commit()
+        db.refresh(db_user)
+        
+        return db_user
 
+
+# OAuth 클라이언트 설정
+oauth = OAuth()
+
+oauth.register(
+    name='google',
+    client_id=settings.google_client_id,
+    client_secret=settings.google_client_secret,
+    server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
+    client_kwargs={
+        'scope': 'openid email profile'
+    }
+)
 
 # 싱글톤 인스턴스
 auth_service = AuthService()

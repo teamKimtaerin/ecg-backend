@@ -1,9 +1,14 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.sessions import SessionMiddleware
 from app.api.v1.routers import api_router
+from app.core.config import settings
 import os
 
 app = FastAPI(title="ECG Backend API", version="1.0.0")
+
+# 세션 미들웨어 추가 (OAuth에 필요)
+app.add_middleware(SessionMiddleware, secret_key=settings.secret_key)
 
 # CORS 설정 - 환경변수에서 허용된 origins 읽기
 cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
