@@ -23,7 +23,7 @@ fi
 # 원격 브랜치 확인
 MAIN_BRANCH=$(git remote show origin 2>/dev/null | grep "HEAD branch" | cut -d' ' -f5)
 if [ -z "$MAIN_BRANCH" ]; then
-    MAIN_BRANCH="main"
+    MAIN_BRANCH="dev"
 fi
 
 echo "📊 브랜치 정보:"
@@ -112,7 +112,7 @@ $DIFF_CONTENT
 ### PR 본문
 ## 개요
 - 무엇을 수정했는지
-- 왜 수정했는지  
+- 왜 수정했는지
 - 핵심 변경사항 요약
 
 ## 설명
@@ -193,7 +193,7 @@ if [ -z "$PR_BODY" ]; then
 - 총 $(echo $CHANGED_FILES | tr ',' '\n' | wc -l)개 파일 수정
 - 추가: +$ADDED_LINES lines, 삭제: -$DELETED_LINES lines
 
-### Why (왜 수정했나요?)  
+### Why (왜 수정했나요?)
 - 요구사항에 따른 기능 구현 필요
 - 기존 코드 개선 및 최적화
 
@@ -226,12 +226,12 @@ if [ $? -eq 0 ]; then
     echo ""
     echo "✅ PR 생성 완료!"
     echo ""
-    
+
     # PR URL 가져오기
     PR_URL=$(gh pr view --json url -q .url)
     if [ -n "$PR_URL" ]; then
         echo "🔗 PR URL: $PR_URL"
-        
+
         # 브라우저에서 열기 옵션
         read -p "브라우저에서 PR을 열까요? (y/n): " -n 1 -r
         echo

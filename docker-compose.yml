@@ -1,0 +1,66 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=${DB_USER:-ecg_user}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-ecg_password}
+      - POSTGRES_DB=${DB_NAME:-ecg_db}
+      - POSTGRES_HOST_AUTH_METHOD=trust
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - ecg-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-kimtaerin} -d ${DB_NAME:-ecg_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      target: ${MODE:-dev}
+      args:
+        MODE: ${MODE:-dev}
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    environment:
+      # FastAPI 환경변수
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,https://d31nzc58rhgh3i.cloudfront.net}
+      - DATABASE_URL=${DATABASE_URL:-postgresql://ecg_user:ecg_password@postgres:5432/ecg_db}
+      # AWS S3 환경변수
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${AWS_REGION}
+      - S3_BUCKET_NAME=${S3_BUCKET_NAME}
+      - S3_PRESIGNED_URL_EXPIRE=${S3_PRESIGNED_URL_EXPIRE}
+    volumes:
+      # 개발모드에서만 볼륨 마운트
+      - .:/app
+      - /app/__pycache__
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - ecg-network
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  ecg-network:
+    name: ecg-network
+    driver: bridge
