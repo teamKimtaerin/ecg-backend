@@ -288,3 +288,90 @@ docker stop <컨테이너 이름 또는 ID> && docker rm <컨테이너 이름 �
 - `pytest` 명령어로 테스트를 실행
 - `--maxfail=1` 옵션은 테스트 실패가 한 번이라도 발생하면 즉시 테스트를 중단하겠다는 의미이고, `--disable-warnings`는 경고 메시지를 표시하지 않겠다는 의미
 - `|| echo "No tests found - skipping"`는 `pytest`가 실행될 테스트를 찾지 못할 경우(exit code가 5인 경우)에도 워크플로우가 실패하지 않고 다음 단계로 넘어갈 수 있도록 해주는 예외 처리 구문
+- 
+
+
+# Pre-commit 사용 가이드
+
+Pre-commit은 Git 커밋 전에 자동으로 코드 품질 검사와 포맷팅을 수행하는 도구입니다.
+
+## 🎯 Pre-commit이 하는 일
+
+### 설정된 도구들
+
+- **Black**: Python 코드 자동 포맷팅
+- **Ruff**: 빠른 Python 린터 + 포맷터
+- **MyPy**: Python 타입 체킹
+
+## 📦 설치 및 설정
+
+### 1. Pre-commit 설치
+
+#### 가상환경 사용 (권장)
+```bash
+# 가상환경 생성
+python -m venv venv
+
+# 가상환경 활성화
+# Windows:
+venv\Scripts\activate
+# macOS/Linux:
+source venv/bin/activate
+
+# pre-commit 설치
+pip install pre-commit
+```
+
+#### 시스템 전역 설치
+```bash
+# pip으로 설치
+pip install pre-commit
+
+# 또는 conda로 설치
+conda install -c conda-forge pre-commit
+
+# 또는 homebrew (macOS)
+brew install pre-commit
+```
+
+### 2. Git 훅 설치
+
+```bash
+# 프로젝트 루트에서 실행
+pre-commit install
+```
+
+### 3. 설정 확인
+
+```bash
+# 현재 설정 확인
+cat .pre-commit-config.yaml
+```
+
+## 🚀 사용 방법
+
+### 일반적인 워크플로우
+
+```bash
+# 1. 코드 수정
+vim app/main.py
+
+# 2. Git add
+git add app/main.py
+
+# 3. 커밋 시도 (pre-commit 자동 실행)
+git commit -m "Fix authentication bug"
+
+# 4-A. 성공 시
+✅ Black................Passed
+✅ Ruff.................Passed
+✅ MyPy.................Passed
+[main 1234567] Fix authentication bug
+
+# 4-B. 실패 시
+❌ Black................Failed
+❌ Ruff.................Failed
+- 파일이 자동 수정됨
+- 다시 git add 후 커밋 필요
+```
+
