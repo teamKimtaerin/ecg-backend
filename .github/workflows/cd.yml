@@ -8,6 +8,7 @@ env:
   AWS_REGION: us-east-1
   ECR_REPOSITORY: ecg-project-pipeline-dev-api
   ECS_SERVICE: ecg-project-pipeline-dev-api-service
+  ECS_TASK_DEFINITION: ecg-project-pipeline-dev-api
   ECS_CLUSTER: ecg-project-pipeline-dev-cluster
 
 jobs:
@@ -53,7 +54,7 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
         run: |
           # Get current task definition
-          TASK_DEFINITION=$(aws ecs describe-task-definition --task-definition ${{ env.ECS_SERVICE }} --region ${{ env.AWS_REGION }})
+          TASK_DEFINITION=$(aws ecs describe-task-definition --task-definition ${{ env.ECS_TASK_DEFINITION }} --region ${{ env.AWS_REGION }})
           
           # Create new task definition with updated environment variables and image
           NEW_TASK_DEFINITION=$(echo $TASK_DEFINITION | jq --arg IMAGE "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" --arg SECRET_KEY "${{ secrets.SECRET_KEY }}" --arg JWT_SECRET "${{ secrets.JWT_SECRET_KEY }}" --arg AWS_ACCESS_KEY "${{ secrets.AWS_ACCESS_KEY_ID }}" --arg AWS_SECRET_KEY "${{ secrets.AWS_SECRET_ACCESS_KEY }}" --arg GOOGLE_CLIENT_ID "${{ secrets.GOOGLE_CLIENT_ID }}" --arg GOOGLE_CLIENT_SECRET "${{ secrets.GOOGLE_CLIENT_SECRET }}" --arg GOOGLE_REDIRECT_URI "${{ secrets.GOOGLE_REDIRECT_URI }}" '
@@ -83,7 +84,7 @@ jobs:
           aws ecs update-service \
             --cluster ${{ env.ECS_CLUSTER }} \
             --service ${{ env.ECS_SERVICE }} \
-            --task-definition ${{ env.ECS_SERVICE }}:$NEW_REVISION \
+            --task-definition ${{ env.ECS_TASK_DEFINITION }}:$NEW_REVISION \
             --region ${{ env.AWS_REGION }}
 
       - name: Wait for service stability
