@@ -18,7 +18,6 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-
 -- Grant permissions (optional, depends on your setup)
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO kimtaerin;
 GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO kimtaerin;
