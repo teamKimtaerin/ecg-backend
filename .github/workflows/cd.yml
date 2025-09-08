@@ -46,12 +46,44 @@ jobs:
           
           echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
-      - name: Force new deployment to ECS
+      - name: Update task definition and deploy to ECS
+        id: deploy
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
         run: |
+          # Get current task definition
+          TASK_DEFINITION=$(aws ecs describe-task-definition --task-definition ${{ env.ECS_SERVICE }} --region ${{ env.AWS_REGION }})
+          
+          # Create new task definition with updated environment variables and image
+          NEW_TASK_DEFINITION=$(echo $TASK_DEFINITION | jq --arg IMAGE "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" --arg SECRET_KEY "${{ secrets.SECRET_KEY }}" --arg JWT_SECRET "${{ secrets.JWT_SECRET_KEY }}" --arg AWS_ACCESS_KEY "${{ secrets.AWS_ACCESS_KEY_ID }}" --arg AWS_SECRET_KEY "${{ secrets.AWS_SECRET_ACCESS_KEY }}" --arg GOOGLE_CLIENT_ID "${{ secrets.GOOGLE_CLIENT_ID }}" --arg GOOGLE_CLIENT_SECRET "${{ secrets.GOOGLE_CLIENT_SECRET }}" --arg GOOGLE_REDIRECT_URI "${{ secrets.GOOGLE_REDIRECT_URI }}" '
+            .taskDefinition | 
+            .containerDefinitions[0].image = $IMAGE |
+            .containerDefinitions[0].environment = [
+              {"name": "AWS_DEFAULT_REGION", "value": "us-east-1"},
+              {"name": "S3_BUCKET_NAME", "value": (.containerDefinitions[0].environment[] | select(.name=="S3_BUCKET_NAME") | .value)},
+              {"name": "MODEL_SERVER_URL", "value": (.containerDefinitions[0].environment[] | select(.name=="MODEL_SERVER_URL") | .value)},
+              {"name": "SECRET_KEY", "value": $SECRET_KEY},
+              {"name": "JWT_SECRET_KEY", "value": $JWT_SECRET},
+              {"name": "AWS_ACCESS_KEY_ID", "value": $AWS_ACCESS_KEY},
+              {"name": "AWS_SECRET_ACCESS_KEY", "value": $AWS_SECRET_KEY},
+              {"name": "GOOGLE_CLIENT_ID", "value": $GOOGLE_CLIENT_ID},
+              {"name": "GOOGLE_CLIENT_SECRET", "value": $GOOGLE_CLIENT_SECRET},
+              {"name": "GOOGLE_REDIRECT_URI", "value": $GOOGLE_REDIRECT_URI}
+            ] | 
+            del(.taskDefinitionArn) | del(.revision) | del(.status) | del(.requiresAttributes) | del(.placementConstraints) | del(.compatibilities) | del(.registeredAt) | del(.registeredBy)')
+          
+          # Register new task definition
+          echo $NEW_TASK_DEFINITION > task-definition.json
+          NEW_REVISION=$(aws ecs register-task-definition --region ${{ env.AWS_REGION }} --cli-input-json file://task-definition.json --query 'taskDefinition.revision')
+          
+          echo "New task definition revision: $NEW_REVISION"
+          
+          # Update service with new task definition
           aws ecs update-service \
             --cluster ${{ env.ECS_CLUSTER }} \
             --service ${{ env.ECS_SERVICE }} \
-            --force-new-deployment \
+            --task-definition ${{ env.ECS_SERVICE }}:$NEW_REVISION \
             --region ${{ env.AWS_REGION }}
 
       - name: Wait for service stability
