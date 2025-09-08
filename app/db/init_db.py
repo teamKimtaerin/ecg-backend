@@ -3,13 +3,12 @@
 SQLAlchemy 모델 기반으로 테이블 생성 + 시드 데이터 추가
 """
 
-from sqlalchemy.orm import Session
-from app.db.database import engine, SessionLocal, Base
-from app.models.user import User  # 모델 import (테이블 생성을 위해)
+from app.db.database import engine, Base
 from app.db.seed_data import create_seed_data
 import logging
 
 logger = logging.getLogger(__name__)
+
 
 def init_database():
     """
@@ -19,21 +18,22 @@ def init_database():
     """
     try:
         logger.info("Initializing database...")
-        
+
         # 1. 테이블 생성 (SQLAlchemy 모델 기반)
         logger.info("Creating tables from SQLAlchemy models...")
         Base.metadata.create_all(bind=engine)
         logger.info("Tables created successfully")
-        
+
         # 2. 시드 데이터 생성
         logger.info("Creating seed data...")
         create_seed_data()
-        
+
         logger.info("Database initialization completed!")
-        
+
     except Exception as e:
         logger.error(f"Database initialization failed: {str(e)}")
         raise
+
 
 if __name__ == "__main__":
     # 직접 실행 시

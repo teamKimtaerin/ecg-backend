@@ -12,18 +12,21 @@ app = FastAPI(title="ECG Backend API", version="1.0.0")
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 @app.on_event("startup")
 async def startup_event():
     """애플리케이션 시작 시 실행되는 이벤트"""
     try:
         # 데이터베이스 초기화 (테이블 생성 + 시드 데이터)
         from app.db.init_db import init_database
+
         logger.info("Starting database initialization...")
         init_database()
         logger.info("Database initialization completed")
     except Exception as e:
         logger.error(f"Database initialization failed: {str(e)}")
         # 애플리케이션은 계속 실행 (이미 테이블이 있을 수 있음)
+
 
 # 세션 미들웨어 추가 (OAuth에 필요)
 app.add_middleware(SessionMiddleware, secret_key=settings.secret_key)
