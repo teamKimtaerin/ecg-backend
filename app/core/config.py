@@ -1,17 +1,26 @@
-from typing import List
+from typing import List, Union
 from pydantic_settings import BaseSettings
-from pydantic import Field
+from pydantic import Field, validator
 
 
 class Settings(BaseSettings):
     # App Settings
     app_name: str = Field(default="ECG Backend", description="Application name")
     debug: bool = Field(default=False, description="Debug mode")
+    secret_key: str = Field(..., description="Application secret key")
+    mode: str = Field(default="dev", description="Application mode")
+    backend_port: int = Field(default=8000, description="Backend port")
 
     # CORS Settings
-    cors_origins: List[str] = Field(
-        default=["http://localhost:3000"], description="CORS allowed origins"
+    cors_origins: Union[List[str], str] = Field(
+        default="http://localhost:3000", description="CORS allowed origins"
     )
+
+    @validator("cors_origins", pre=True)
+    def parse_cors_origins(cls, v):
+        if isinstance(v, str):
+            return [origin.strip() for origin in v.split(",")]
+        return v
 
     # AWS Settings
     aws_access_key_id: str = Field(..., description="AWS Access Key ID")
@@ -28,7 +37,28 @@ class Settings(BaseSettings):
     model_server_url: str = Field(..., description="Model server URL")
 
     # Database Settings
-    database_url: str = Field(default="sqlite:///./app.db", description="Database URL")
+    database_url: str = Field(
+        default="postgresql://ecg_user:ecg_password@localhost:5432/ecg_db",
+        description="Database URL",
+    )
+    db_user: str = Field(default="ecg_user", description="Database username")
+    db_password: str = Field(default="ecg_password", description="Database password")
+    db_name: str = Field(default="ecg_db", description="Database name")
+    db_port: int = Field(default=5432, description="Database port")
+
+    # API Settings
+    api_prefix: str = Field(default="/api/v1", description="API path prefix")
+
+    # JWT Settings
+    jwt_secret_key: str = Field(..., description="JWT secret key")
+    jwt_access_token_expire_minutes: int = Field(
+        default=1440, description="JWT token expiration time in minutes"
+    )
+
+    # Google OAuth Settings
+    google_client_id: str = Field(..., description="Google OAuth client ID")
+    google_client_secret: str = Field(..., description="Google OAuth client secret")
+    google_redirect_uri: str = Field(..., description="Google OAuth redirect URI")
 
     class Config:
         env_file = ".env"
