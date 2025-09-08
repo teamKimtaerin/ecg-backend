@@ -104,7 +104,7 @@ async def generate_download_url(file_key: str):
         # 파일 존재 확인
         try:
             s3_client.head_object(Bucket=s3_bucket_name, Key=file_key)
-        except:
+        except Exception:
             raise HTTPException(status_code=404, detail="File not found")
 
         # 다운로드용 presigned URL 생성
