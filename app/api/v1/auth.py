@@ -24,13 +24,15 @@ async def signup(user_data: UserCreate, db: Session = Depends(get_db)):
     # 이메일 중복 확인
     if auth_service.get_user_by_email(db, user_data.email):
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="이미 사용 중인 이메일입니다."
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="이미 사용 중인 이메일입니다.",
         )
 
     # 사용자명 중복 확인
     if auth_service.get_user_by_username(db, user_data.username):
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="이미 사용 중인 사용자명입니다."
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="이미 사용 중인 사용자명입니다.",
         )
 
     # 사용자 생성
@@ -74,7 +76,8 @@ async def login(user_data: UserLogin, db: Session = Depends(get_db)):
     # 계정 활성화 상태 확인
     if not user.is_active:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="비활성화된 계정입니다. 관리자에게 문의하세요."
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="비활성화된 계정입니다. 관리자에게 문의하세요.",
         )
 
     # JWT 토큰 생성
