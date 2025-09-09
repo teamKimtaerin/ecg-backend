@@ -33,8 +33,10 @@ class Settings(BaseSettings):
         default=3600, description="Presigned URL expiration time in seconds"
     )
 
-    # Model Server Settings
-    model_server_url: str = Field(..., description="Model server URL")
+    # ML Server Settings
+    ml_server_url: str = Field(
+        ..., description="ML server URL", alias="MODEL_SERVER_URL"
+    )
 
     # Database Settings
     database_url: str = Field(
