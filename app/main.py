@@ -17,7 +17,9 @@ logger = logging.getLogger(__name__)
 async def startup_event():
     """애플리케이션 시작 시 실행되는 이벤트"""
     # DATABASE_URL이 기본값(로컬)이 아닌 경우만 데이터베이스 초기화 시도
-    if not settings.database_url.startswith("postgresql://ecg_user:ecg_password@localhost"):
+    if not settings.database_url.startswith(
+        "postgresql://ecg_user:ecg_password@localhost"
+    ):
         try:
             # 데이터베이스 초기화 (테이블 생성 + 시드 데이터)
             from app.db.init_db import init_database
@@ -29,7 +31,9 @@ async def startup_event():
             logger.error(f"Database initialization failed: {str(e)}")
             # 애플리케이션은 계속 실행 (이미 테이블이 있을 수 있음)
     else:
-        logger.info("Skipping database initialization (using default/local database URL)")
+        logger.info(
+            "Skipping database initialization (using default/local database URL)"
+        )
 
 
 # 세션 미들웨어 추가 (OAuth에 필요)

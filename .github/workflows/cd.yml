@@ -8,7 +8,6 @@ env:
   AWS_REGION: us-east-1
   ECR_REPOSITORY: ecg-project-pipeline-dev-api
   ECS_SERVICE: ecg-project-pipeline-dev-api-service
-  ECS_TASK_DEFINITION: ecg-project-pipeline-dev-api
   ECS_CLUSTER: ecg-project-pipeline-dev-cluster
 
 jobs:
@@ -38,7 +37,7 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
         run: |
           # Build a docker container and push it to ECR
-          docker build --target prod -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           
           # Also tag as latest
@@ -54,24 +53,29 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
         run: |
           # Get current task definition
-          TASK_DEFINITION=$(aws ecs describe-task-definition --task-definition ${{ env.ECS_TASK_DEFINITION }} --region ${{ env.AWS_REGION }})
+          TASK_DEFINITION=$(aws ecs describe-task-definition --task-definition ${{ env.ECS_SERVICE }} --region ${{ env.AWS_REGION }})
           
           # Create new task definition with updated environment variables and image
-          NEW_TASK_DEFINITION=$(echo $TASK_DEFINITION | jq --arg IMAGE "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" --arg SECRET_KEY "${{ secrets.SECRET_KEY }}" --arg JWT_SECRET "${{ secrets.JWT_SECRET_KEY }}" --arg AWS_ACCESS_KEY "${{ secrets.AWS_ACCESS_KEY_ID }}" --arg AWS_SECRET_KEY "${{ secrets.AWS_SECRET_ACCESS_KEY }}" --arg GOOGLE_CLIENT_ID "${{ secrets.GOOGLE_CLIENT_ID }}" --arg GOOGLE_CLIENT_SECRET "${{ secrets.GOOGLE_CLIENT_SECRET }}" --arg GOOGLE_REDIRECT_URI "${{ secrets.GOOGLE_REDIRECT_URI }}" --arg CORS_ORIGINS "${{ secrets.CORS_ORIGINS }}" '
+          NEW_TASK_DEFINITION=$(echo $TASK_DEFINITION | jq --arg IMAGE "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" --arg SECRET_KEY "${{ secrets.SECRET_KEY }}" --arg JWT_SECRET "${{ secrets.JWT_SECRET_KEY }}" --arg AWS_ACCESS_KEY "${{ secrets.AWS_ACCESS_KEY_ID }}" --arg AWS_SECRET_KEY "${{ secrets.AWS_SECRET_ACCESS_KEY }}" --arg GOOGLE_CLIENT_ID "${{ secrets.GOOGLE_CLIENT_ID }}" --arg GOOGLE_CLIENT_SECRET "${{ secrets.GOOGLE_CLIENT_SECRET }}" --arg GOOGLE_REDIRECT_URI "${{ secrets.GOOGLE_REDIRECT_URI }}" '
             .taskDefinition | 
             .containerDefinitions[0].image = $IMAGE |
             .containerDefinitions[0].environment = [
               {"name": "AWS_DEFAULT_REGION", "value": "us-east-1"},
               {"name": "S3_BUCKET_NAME", "value": (.containerDefinitions[0].environment[] | select(.name=="S3_BUCKET_NAME") | .value)},
               {"name": "MODEL_SERVER_URL", "value": (.containerDefinitions[0].environment[] | select(.name=="MODEL_SERVER_URL") | .value)},
+              {"name": "DATABASE_URL", "value": (.containerDefinitions[0].environment[] | select(.name=="DATABASE_URL") | .value)},
+              {"name": "DB_HOST", "value": (.containerDefinitions[0].environment[] | select(.name=="DB_HOST") | .value)},
+              {"name": "DB_PORT", "value": (.containerDefinitions[0].environment[] | select(.name=="DB_PORT") | .value)},
+              {"name": "DB_NAME", "value": (.containerDefinitions[0].environment[] | select(.name=="DB_NAME") | .value)},
+              {"name": "DB_USER", "value": (.containerDefinitions[0].environment[] | select(.name=="DB_USER") | .value)},
+              {"name": "DB_PASSWORD", "value": (.containerDefinitions[0].environment[] | select(.name=="DB_PASSWORD") | .value)},
               {"name": "SECRET_KEY", "value": $SECRET_KEY},
               {"name": "JWT_SECRET_KEY", "value": $JWT_SECRET},
               {"name": "AWS_ACCESS_KEY_ID", "value": $AWS_ACCESS_KEY},
               {"name": "AWS_SECRET_ACCESS_KEY", "value": $AWS_SECRET_KEY},
               {"name": "GOOGLE_CLIENT_ID", "value": $GOOGLE_CLIENT_ID},
               {"name": "GOOGLE_CLIENT_SECRET", "value": $GOOGLE_CLIENT_SECRET},
-              {"name": "GOOGLE_REDIRECT_URI", "value": $GOOGLE_REDIRECT_URI},
-              {"name": "CORS_ORIGINS", "value": $CORS_ORIGINS}
+              {"name": "GOOGLE_REDIRECT_URI", "value": $GOOGLE_REDIRECT_URI}
             ] | 
             del(.taskDefinitionArn) | del(.revision) | del(.status) | del(.requiresAttributes) | del(.placementConstraints) | del(.compatibilities) | del(.registeredAt) | del(.registeredBy)')
           
@@ -85,7 +89,7 @@ jobs:
           aws ecs update-service \
             --cluster ${{ env.ECS_CLUSTER }} \
             --service ${{ env.ECS_SERVICE }} \
-            --task-definition ${{ env.ECS_TASK_DEFINITION }}:$NEW_REVISION \
+            --task-definition ${{ env.ECS_SERVICE }}:$NEW_REVISION \
             --region ${{ env.AWS_REGION }}
 
       - name: Wait for service stability
