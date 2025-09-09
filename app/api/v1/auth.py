@@ -1,4 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, status, Request
+from fastapi.responses import RedirectResponse, JSONResponse
+
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from authlib.integrations.base_client.errors import OAuthError
@@ -12,7 +14,7 @@ router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 security = HTTPBearer()
 
 
-@router.post("/signup", response_model=Token, status_code=status.HTTP_201_CREATED)
+@router.post("/signup", status_code=status.HTTP_201_CREATED)
 async def signup(user_data: UserCreate, db: Session = Depends(get_db)):
     """
     회원가입 API
@@ -40,19 +42,32 @@ async def signup(user_data: UserCreate, db: Session = Depends(get_db)):
             detail=f"사용자 생성 중 오류가 발생했습니다: {str(e)}",
         )
 
-    # JWT 토큰 생성
-    access_token = auth_service.create_access_token(
+    # JWT 토큰 쌍 생성
+    access_token, refresh_token = auth_service.create_token_pair(
         data={"user_id": user.id, "email": user.email}
     )
 
-    return {
+    # Response 생성
+    response = JSONResponse(content={
         "access_token": access_token,
         "token_type": "bearer",
-        "user": UserResponse.from_orm(user),
-    }
+        "user": UserResponse.from_orm(user).dict(),
+    })
+
+    # Refresh token을 HttpOnly 쿠키로 설정
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=True,
+        samesite="lax",
+        max_age=30 * 24 * 60 * 60,  # 30일
+    )
+
+    return response
 
 
-@router.post("/login", response_model=Token)
+@router.post("/login")
 async def login(user_data: UserLogin, db: Session = Depends(get_db)):
     """
     로그인 API
@@ -75,29 +90,59 @@ async def login(user_data: UserLogin, db: Session = Depends(get_db)):
             status_code=status.HTTP_403_FORBIDDEN, detail="비활성화된 계정입니다. 관리자에게 문의하세요."
         )
 
-    # JWT 토큰 생성
-    access_token = auth_service.create_access_token(
+    # JWT 토큰 쌍 생성
+    access_token, refresh_token = auth_service.create_token_pair(
         data={"user_id": user.id, "email": user.email}
     )
 
-    return {
+    # Response 생성
+    response = JSONResponse(content={
         "access_token": access_token,
         "token_type": "bearer",
-        "user": UserResponse.from_orm(user),
-    }
+        "user": UserResponse.from_orm(user).dict(),
+    })
+
+    # Refresh token을 HttpOnly 쿠키로 설정
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=True,
+        samesite="lax",
+        max_age=30 * 24 * 60 * 60,  # 30일
+    )
+
+    return response
 
 
 @router.get("/me", response_model=UserResponse)
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    request: Request,
     db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = None,
 ):
     """
     현재 로그인한 사용자 정보 조회
-    - JWT 토큰으로 사용자 확인
+    - JWT 토큰 (Bearer 또는 HttpOnly 쿠키)으로 사용자 확인
     """
+    token = None
+
+    # 1. Authorization 헤더에서 토큰 확인
+    if credentials:
+        token = credentials.credentials
+    # 2. HttpOnly 쿠키에서 토큰 확인
+    elif request.cookies.get("access_token"):
+        token = request.cookies.get("access_token")
+
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="인증 토큰이 없습니다.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     # 토큰 검증
-    payload = auth_service.verify_token(credentials.credentials)
+    payload = auth_service.verify_token(token)
     if not payload:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -115,6 +160,57 @@ async def get_current_user(
         )
 
     return UserResponse.from_orm(user)
+
+
+@router.post("/refresh")
+async def refresh_token(request: Request, db: Session = Depends(get_db)):
+    """
+    Refresh token을 이용해 새로운 access token 발급
+    """
+    refresh_token = request.cookies.get("refresh_token")
+    if not refresh_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token이 없습니다.",
+        )
+
+    # Refresh token 검증
+    payload = auth_service.verify_token(refresh_token, token_type="refresh")
+    if not payload:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="유효하지 않은 refresh token입니다.",
+        )
+
+    # 사용자 조회
+    user_id = payload.get("user_id")
+    user = db.query(User).filter(User.id == user_id).first()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="사용자를 찾을 수 없습니다."
+        )
+
+    # 새로운 access token 생성
+    new_access_token = auth_service.create_access_token(
+        data={"user_id": user.id, "email": user.email}
+    )
+
+    return JSONResponse(content={
+        "access_token": new_access_token,
+        "token_type": "bearer",
+    })
+
+
+@router.post("/logout")
+async def logout():
+    """
+    로그아웃 - refresh token 쿠키 삭제
+    """
+    response = JSONResponse(content={"message": "로그아웃 되었습니다."})
+    response.delete_cookie(key="refresh_token")
+    return response
 
 
 @router.get("/google/login")
@@ -167,16 +263,32 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
                 provider=AuthProvider.GOOGLE,
             )
 
-        # JWT 토큰 생성
-        access_token = auth_service.create_access_token(
+        # JWT 토큰 쌍 생성
+        access_token, refresh_token = auth_service.create_token_pair(
             data={"user_id": user.id, "email": user.email}
         )
 
-        return {
-            "access_token": access_token,
-            "token_type": "bearer",
-            "user": UserResponse.from_orm(user),
-        }
+        # 성공 시 프론트엔드로 리디렉션
+        frontend_url = (
+            settings.cors_origins[0]
+            if settings.cors_origins
+            else "http://localhost:3000"
+        )
+        frontend_url = frontend_url.rstrip('/')
+
+        response = RedirectResponse(url=f"{frontend_url}/auth/callback?success=true&access_token={access_token}")
+
+        # Refresh token을 HttpOnly 쿠키로 설정
+        response.set_cookie(
+            key="refresh_token",
+            value=refresh_token,
+            httponly=True,
+            secure=True,
+            samesite="lax",
+            max_age=30 * 24 * 60 * 60,  # 30일
+        )
+
+        return response
 
     except OAuthError as e:
         raise HTTPException(

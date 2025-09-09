@@ -16,7 +16,8 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 # JWT 설정
 SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-secret-key-change-in-production")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24시간
+ACCESS_TOKEN_EXPIRE_MINUTES = 15  # 15분
+REFRESH_TOKEN_EXPIRE_DAYS = 30    # 30일
 
 
 class AuthService:
@@ -41,15 +42,34 @@ class AuthService:
         else:
             expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
 
-        to_encode.update({"exp": expire})
+        to_encode.update({"exp": expire, "type": "access"})
         encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
         return encoded_jwt
 
     @staticmethod
-    def verify_token(token: str) -> Optional[dict]:
+    def create_refresh_token(data: dict):
+        """JWT 리프레시 토큰 생성"""
+        to_encode = data.copy()
+        expire = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+        to_encode.update({"exp": expire, "type": "refresh"})
+        encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+        return encoded_jwt
+
+    @staticmethod
+    def create_token_pair(data: dict):
+        """액세스 토큰과 리프레시 토큰 쌍 생성"""
+        access_token = AuthService.create_access_token(data)
+        refresh_token = AuthService.create_refresh_token(data)
+        return access_token, refresh_token
+
+    @staticmethod
+    def verify_token(token: str, token_type: str = "access") -> Optional[dict]:
         """JWT 토큰 검증"""
         try:
             payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            # 토큰 타입 검증
+            if payload.get("type") != token_type:
+                return None
             return payload
         except JWTError:
             return None
