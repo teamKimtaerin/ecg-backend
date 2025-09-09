@@ -57,7 +57,7 @@ jobs:
           TASK_DEFINITION=$(aws ecs describe-task-definition --task-definition ${{ env.ECS_TASK_DEFINITION }} --region ${{ env.AWS_REGION }})
           
           # Create new task definition with updated environment variables and image
-          NEW_TASK_DEFINITION=$(echo $TASK_DEFINITION | jq --arg IMAGE "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" --arg SECRET_KEY "${{ secrets.SECRET_KEY }}" --arg JWT_SECRET "${{ secrets.JWT_SECRET_KEY }}" --arg AWS_ACCESS_KEY "${{ secrets.AWS_ACCESS_KEY_ID }}" --arg AWS_SECRET_KEY "${{ secrets.AWS_SECRET_ACCESS_KEY }}" --arg GOOGLE_CLIENT_ID "${{ secrets.GOOGLE_CLIENT_ID }}" --arg GOOGLE_CLIENT_SECRET "${{ secrets.GOOGLE_CLIENT_SECRET }}" --arg GOOGLE_REDIRECT_URI "${{ secrets.GOOGLE_REDIRECT_URI }}" '
+          NEW_TASK_DEFINITION=$(echo $TASK_DEFINITION | jq --arg IMAGE "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" --arg SECRET_KEY "${{ secrets.SECRET_KEY }}" --arg JWT_SECRET "${{ secrets.JWT_SECRET_KEY }}" --arg AWS_ACCESS_KEY "${{ secrets.AWS_ACCESS_KEY_ID }}" --arg AWS_SECRET_KEY "${{ secrets.AWS_SECRET_ACCESS_KEY }}" --arg GOOGLE_CLIENT_ID "${{ secrets.GOOGLE_CLIENT_ID }}" --arg GOOGLE_CLIENT_SECRET "${{ secrets.GOOGLE_CLIENT_SECRET }}" --arg GOOGLE_REDIRECT_URI "${{ secrets.GOOGLE_REDIRECT_URI }}" --arg CORS_ORIGINS "${{ secrets.CORS_ORIGINS }}" '
             .taskDefinition | 
             .containerDefinitions[0].image = $IMAGE |
             .containerDefinitions[0].environment = [
@@ -70,7 +70,8 @@ jobs:
               {"name": "AWS_SECRET_ACCESS_KEY", "value": $AWS_SECRET_KEY},
               {"name": "GOOGLE_CLIENT_ID", "value": $GOOGLE_CLIENT_ID},
               {"name": "GOOGLE_CLIENT_SECRET", "value": $GOOGLE_CLIENT_SECRET},
-              {"name": "GOOGLE_REDIRECT_URI", "value": $GOOGLE_REDIRECT_URI}
+              {"name": "GOOGLE_REDIRECT_URI", "value": $GOOGLE_REDIRECT_URI},
+              {"name": "CORS_ORIGINS", "value": $CORS_ORIGINS}
             ] | 
             del(.taskDefinitionArn) | del(.revision) | del(.status) | del(.requiresAttributes) | del(.placementConstraints) | del(.compatibilities) | del(.registeredAt) | del(.registeredBy)')
           
