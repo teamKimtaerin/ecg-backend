@@ -104,7 +104,7 @@ async def generate_download_url(file_key: str):
         # 파일 존재 확인
         try:
             s3_client.head_object(Bucket=s3_bucket_name, Key=file_key)
-        except:
+        except Exception:
             raise HTTPException(status_code=404, detail="File not found")
 
         # 다운로드용 presigned URL 생성
@@ -137,35 +137,72 @@ job_storage = {}
 @router.post("/request-process")
 async def request_process(request: dict):
     """
-    시연용: 비디오 처리 요청
+    실제 ML 서버로 비디오 처리 요청
     """
     file_key = request.get("fileKey")
 
     if not file_key:
         raise HTTPException(status_code=400, detail="fileKey is required")
 
-    # 가짜 job ID 생성
-    job_id = str(uuid.uuid4())
-
-    # Job 상태 저장 (시연용)
-    job_storage[job_id] = {
-        "jobId": job_id,
-        "fileKey": file_key,
-        "status": "processing",
-        "message": "Video processing in progress...",
-        "progress": 0,
-        "createdAt": time.time(),
-        "result": None,
-    }
-
-    print(f"[DEMO] Processing started for fileKey: {file_key}, jobId: {job_id}")
-
-    # 시연용: 5초 후 자동으로 완료 처리
-    import asyncio
-
-    asyncio.create_task(simulate_processing(job_id))
-
-    return {"message": "Video processing started.", "jobId": job_id}
+    # ML 서버 호출
+    try:
+        import httpx
+        import os
+        import asyncio
+        
+        model_server_url = os.getenv("MODEL_SERVER_URL", "http://10.0.10.42:8080")
+        
+        print(f"[ML SERVER] Calling ML server: {model_server_url}/request-process?video_key={file_key}")
+        
+        # ML 서버로 비동기 요청
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                f"{model_server_url}/request-process",
+                params={"video_key": file_key}
+            )
+            
+            if response.status_code == 200:
+                ml_result = response.json()
+                ml_job_id = ml_result.get("job_id")
+                
+                # Backend job ID와 ML job ID 매핑 저장
+                backend_job_id = str(uuid.uuid4())
+                job_storage[backend_job_id] = {
+                    "jobId": backend_job_id,
+                    "mlJobId": ml_job_id,
+                    "fileKey": file_key,
+                    "status": "processing",
+                    "message": "Video processing in progress on ML server...",
+                    "progress": 0,
+                    "createdAt": time.time(),
+                    "result": None,
+                }
+                
+                print(f"[ML SERVER] Success - Backend Job ID: {backend_job_id}, ML Job ID: {ml_job_id}")
+                return {"message": "Video processing started.", "jobId": backend_job_id}
+            else:
+                print(f"[ML SERVER ERROR] Status: {response.status_code}, Response: {response.text}")
+                raise HTTPException(status_code=500, detail=f"ML server error: {response.status_code}")
+                
+    except Exception as e:
+        print(f"[ML SERVER ERROR] Failed to call ML server: {str(e)}")
+        
+        # ML 서버 호출 실패시 폴백 모드
+        job_id = str(uuid.uuid4())
+        job_storage[job_id] = {
+            "jobId": job_id,
+            "fileKey": file_key,
+            "status": "processing",
+            "message": "Processing with fallback mode (ML server unavailable)...",
+            "progress": 0,
+            "createdAt": time.time(),
+            "result": None,
+        }
+        
+        # 폴백으로 시뮬레이션 실행
+        asyncio.create_task(simulate_processing(job_id))
+        
+        return {"message": "Video processing started (fallback mode).", "jobId": job_id}
 
 
 async def simulate_processing(job_id: str):
