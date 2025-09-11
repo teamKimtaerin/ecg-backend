@@ -4,7 +4,7 @@ ML 서버와의 통신을 위한 비디오 처리 API
 EC2 ML 서버로부터 분석 결과를 받고, 비디오 처리 요청을 관리합니다.
 """
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from pydantic import BaseModel
 from typing import Dict, Any, Optional, List
 from datetime import datetime
@@ -13,6 +13,9 @@ import asyncio
 import logging
 import os
 import aiohttp
+from sqlalchemy.orm import Session
+from app.db.database import get_db
+from app.services.job_service import JobService
 
 # 로거 설정
 logger = logging.getLogger(__name__)
@@ -79,8 +82,7 @@ class JobStatusResponse(BaseModel):
     error_message: Optional[str] = None
 
 
-# 메모리 기반 작업 상태 저장소 (추후 Redis나 DB로 대체)
-job_status_store: Dict[str, Dict[str, Any]] = {}
+# PostgreSQL 기반 작업 상태 관리 (메모리 저장소에서 마이그레이션됨)
 
 # 환경변수에서 ML 서버 설정 읽기
 MODEL_SERVER_URL = os.getenv("MODEL_SERVER_URL", "http://localhost:8001")
@@ -89,7 +91,9 @@ FASTAPI_BASE_URL = os.getenv("FASTAPI_BASE_URL", "http://localhost:8000")
 
 @router.post("/request-process", response_model=ClientProcessResponse)
 async def request_process(
-    request: ClientProcessRequest, background_tasks: BackgroundTasks
+    request: ClientProcessRequest, 
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db)
 ):
     """
     클라이언트로부터 비디오 처리 요청을 받아 ML 서버로 전달
@@ -114,14 +118,15 @@ async def request_process(
             f"https://{s3_bucket_name}.s3.{aws_region}.amazonaws.com/{request.fileKey}"
         )
 
-        # 초기 상태 설정
-        job_status_store[job_id] = {
-            "status": "processing",
-            "progress": 0,
-            "created_at": datetime.now().isoformat(),
-            "video_url": video_url,
-            "fileKey": request.fileKey,
-        }
+        # PostgreSQL에 작업 생성
+        job_service = JobService(db)
+        job = job_service.create_job(
+            job_id=job_id,
+            status="processing",
+            progress=0,
+            video_url=video_url,
+            file_key=request.fileKey
+        )
 
         logger.info(f"새 비디오 처리 요청 - Job ID: {job_id}")
 
@@ -184,7 +189,9 @@ async def process_video_request(
 
 @router.post("/result")
 async def receive_ml_results(
-    ml_result: MLResultRequest, background_tasks: BackgroundTasks
+    ml_result: MLResultRequest, 
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db)
 ):
     """
     ML 서버로부터 분석 결과를 받는 엔드포인트
@@ -198,20 +205,25 @@ async def receive_ml_results(
 
         logger.info(f"ML 결과 수신 - Job ID: {job_id}")
 
+        # PostgreSQL에서 작업 상태 업데이트
+        job_service = JobService(db)
+        
         # 작업이 존재하는지 확인
-        if job_id not in job_status_store:
+        job = job_service.get_job(job_id)
+        if not job:
             logger.warning(f"존재하지 않는 Job ID: {job_id}")
             raise HTTPException(status_code=404, detail="해당 작업을 찾을 수 없습니다")
 
         # 작업 상태를 완료로 업데이트
-        job_status_store[job_id].update(
-            {
-                "status": "completed",
-                "progress": 100,
-                "last_updated": datetime.now().isoformat(),
-                "result": ml_result.result,
-            }
+        success = job_service.update_job_status(
+            job_id=job_id,
+            status="completed",
+            progress=100,
+            result=ml_result.result
         )
+        
+        if not success:
+            raise HTTPException(status_code=500, detail="작업 상태 업데이트 실패")
 
         logger.info(f"작업 완료 - Job ID: {job_id}")
 
@@ -228,49 +240,54 @@ async def receive_ml_results(
 
 
 @router.get("/status/{job_id}")
-async def get_job_status(job_id: str):
+async def get_job_status(job_id: str, db: Session = Depends(get_db)):
     """작업 상태 조회 (클라이언트 폴링용)"""
-
-    if job_id not in job_status_store:
+    
+    job_service = JobService(db)
+    job = job_service.get_job(job_id)
+    
+    if not job:
         raise HTTPException(status_code=404, detail="해당 작업을 찾을 수 없습니다")
 
-    job_data = job_status_store[job_id]
-
-    if job_data["status"] == "processing":
+    if job.status == "processing":
         return {
-            "job_id": job_id,
-            "status": "processing",
-            "progress": job_data.get("progress", 0),
+            "job_id": str(job.job_id),
+            "status": job.status,
+            "progress": job.progress,
         }
     else:
         # 완료된 경우 결과 데이터 포함
-        response = {"job_id": job_id, "status": "completed"}
+        response = {
+            "job_id": str(job.job_id), 
+            "status": job.status,
+            "progress": job.progress
+        }
 
         # 결과 데이터가 있으면 포함
-        if "result" in job_data and job_data["result"]:
-            response["result"] = job_data["result"]
+        if job.result:
+            response["result"] = job.result
 
         return response
 
 
 @router.get("/jobs", response_model=List[Dict[str, Any]])
-async def list_all_jobs():
+async def list_all_jobs(db: Session = Depends(get_db)):
     """모든 작업 목록 조회 (개발/테스트용)"""
-
+    
+    job_service = JobService(db)
+    jobs_data = job_service.list_all_jobs()
+    
     jobs = []
-    for job_id, job_data in job_status_store.items():
+    for job in jobs_data:
         jobs.append(
             {
-                "job_id": job_id,
-                "status": job_data["status"],
-                "progress": job_data.get("progress", 0.0),
-                "created_at": job_data["created_at"],
-                "last_updated": job_data.get("last_updated"),
+                "job_id": str(job.job_id),
+                "status": job.status,
+                "progress": job.progress,
+                "created_at": job.created_at.isoformat(),
+                "last_updated": job.updated_at.isoformat() if job.updated_at else None,
             }
         )
-
-    # 최신 순으로 정렬
-    jobs.sort(key=lambda x: x["created_at"], reverse=True)
 
     return jobs
 
