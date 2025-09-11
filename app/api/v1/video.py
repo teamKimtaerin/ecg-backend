@@ -149,22 +149,23 @@ async def request_process(request: dict):
         import httpx
         import os
         import asyncio
-        
+
         model_server_url = os.getenv("MODEL_SERVER_URL", "http://10.0.10.42:8080")
-        
-        print(f"[ML SERVER] Calling ML server: {model_server_url}/request-process?video_key={file_key}")
-        
+
+        print(
+            f"[ML SERVER] Calling ML server: {model_server_url}/request-process?video_key={file_key}"
+        )
+
         # ML 서버로 비동기 요청
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
-                f"{model_server_url}/request-process",
-                params={"video_key": file_key}
+                f"{model_server_url}/request-process", params={"video_key": file_key}
             )
-            
+
             if response.status_code == 200:
                 ml_result = response.json()
                 ml_job_id = ml_result.get("job_id")
-                
+
                 # Backend job ID와 ML job ID 매핑 저장
                 backend_job_id = str(uuid.uuid4())
                 job_storage[backend_job_id] = {
@@ -177,16 +178,22 @@ async def request_process(request: dict):
                     "createdAt": time.time(),
                     "result": None,
                 }
-                
-                print(f"[ML SERVER] Success - Backend Job ID: {backend_job_id}, ML Job ID: {ml_job_id}")
+
+                print(
+                    f"[ML SERVER] Success - Backend Job ID: {backend_job_id}, ML Job ID: {ml_job_id}"
+                )
                 return {"message": "Video processing started.", "jobId": backend_job_id}
             else:
-                print(f"[ML SERVER ERROR] Status: {response.status_code}, Response: {response.text}")
-                raise HTTPException(status_code=500, detail=f"ML server error: {response.status_code}")
-                
+                print(
+                    f"[ML SERVER ERROR] Status: {response.status_code}, Response: {response.text}"
+                )
+                raise HTTPException(
+                    status_code=500, detail=f"ML server error: {response.status_code}"
+                )
+
     except Exception as e:
         print(f"[ML SERVER ERROR] Failed to call ML server: {str(e)}")
-        
+
         # ML 서버 호출 실패시 폴백 모드
         job_id = str(uuid.uuid4())
         job_storage[job_id] = {
@@ -198,10 +205,10 @@ async def request_process(request: dict):
             "createdAt": time.time(),
             "result": None,
         }
-        
+
         # 폴백으로 시뮬레이션 실행
         asyncio.create_task(simulate_processing(job_id))
-        
+
         return {"message": "Video processing started (fallback mode).", "jobId": job_id}
 
 

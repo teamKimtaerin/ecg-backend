@@ -11,7 +11,6 @@ from datetime import datetime
 from enum import Enum
 import asyncio
 import logging
-import uuid
 import os
 import aiohttp
 
@@ -86,9 +85,7 @@ async def process_video_request(
     try:
         # 입력 검증
         if not request.video_url:
-            raise HTTPException(
-                status_code=400, detail="video_url은 필수입니다"
-            )
+            raise HTTPException(status_code=400, detail="video_url은 필수입니다")
 
         # 요청에서 받은 job_id 사용
         job_id = request.job_id
@@ -154,13 +151,9 @@ async def receive_ml_results(
         logger.info(f"작업 완료 - Job ID: {job_id}")
 
         # 백그라운드에서 결과 후처리
-        background_tasks.add_task(
-            process_completed_results, job_id, ml_result.result
-        )
+        background_tasks.add_task(process_completed_results, job_id, ml_result.result)
 
-        return {
-            "status": "received"
-        }
+        return {"status": "received"}
 
     except HTTPException:
         raise
@@ -182,13 +175,17 @@ async def get_job_status(job_id: str):
         return {
             "job_id": job_id,
             "status": "processing",
-            "progress": job_data.get("progress", 0)
+            "progress": job_data.get("progress", 0),
         }
     else:
-        return {
-            "job_id": job_id,
-            "status": "completed"
-        }
+        # 완료된 경우 결과 데이터 포함
+        response = {"job_id": job_id, "status": "completed"}
+
+        # 결과 데이터가 있으면 포함
+        if "result" in job_data and job_data["result"]:
+            response["result"] = job_data["result"]
+
+        return response
 
 
 @router.get("/jobs", response_model=List[Dict[str, Any]])
@@ -223,13 +220,12 @@ async def trigger_ml_server(job_id: str, request: VideoProcessRequest):
         # ML 서버로 전송할 페이로드 구성
         payload = {
             "job_id": job_id,
-            "video_path": request.video_path,
             "video_url": request.video_url,
             "fastapi_base_url": FASTAPI_BASE_URL,
-            "enable_gpu": request.enable_gpu,
-            "emotion_detection": request.emotion_detection,
-            "language": request.language,
-            "max_workers": request.max_workers,
+            "enable_gpu": True,  # 기본값
+            "emotion_detection": True,  # 기본값
+            "language": "auto",  # 기본값
+            "max_workers": 4,  # 기본값
         }
 
         # 현재는 단순히 ML 서버에 Python 스크립트 실행 명령을 보낸다고 가정
