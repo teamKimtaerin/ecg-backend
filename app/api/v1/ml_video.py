@@ -37,15 +37,28 @@ class MLResultRequest(BaseModel):
     result: Dict[str, Any]
 
 
+class ClientProcessRequest(BaseModel):
+    """클라이언트로부터 받는 비디오 처리 요청"""
+
+    fileKey: str
+
+
 class VideoProcessRequest(BaseModel):
-    """비디오 처리 요청"""
+    """ML 서버로 보내는 비디오 처리 요청"""
 
     job_id: str
     video_url: str
 
 
+class ClientProcessResponse(BaseModel):
+    """클라이언트에게 보내는 비디오 처리 응답"""
+
+    message: str
+    jobId: str
+
+
 class VideoProcessResponse(BaseModel):
-    """비디오 처리 응답"""
+    """ML 서버 비디오 처리 응답"""
 
     job_id: str
     status: str
@@ -74,12 +87,62 @@ ML_SERVER_URL = os.getenv("MODEL_SERVER_URL", "http://localhost:8001")
 FASTAPI_BASE_URL = os.getenv("FASTAPI_BASE_URL", "http://localhost:8000")
 
 
+@router.post("/request-process", response_model=ClientProcessResponse)
+async def request_process(
+    request: ClientProcessRequest, background_tasks: BackgroundTasks
+):
+    """
+    클라이언트로부터 비디오 처리 요청을 받아 ML 서버로 전달
+    """
+
+    try:
+        # 입력 검증
+        if not request.fileKey:
+            raise HTTPException(status_code=400, detail="fileKey는 필수입니다")
+
+        # job_id 생성
+        import uuid
+        job_id = str(uuid.uuid4())
+
+        # S3 URL 생성
+        import os
+        s3_bucket_name = os.getenv("S3_BUCKET_NAME", "default-bucket")
+        aws_region = os.getenv("AWS_REGION", "us-east-1")
+        video_url = f"https://{s3_bucket_name}.s3.{aws_region}.amazonaws.com/{request.fileKey}"
+
+        # 초기 상태 설정
+        job_status_store[job_id] = {
+            "status": "processing",
+            "progress": 0,
+            "created_at": datetime.now().isoformat(),
+            "video_url": video_url,
+            "fileKey": request.fileKey,
+        }
+
+        logger.info(f"새 비디오 처리 요청 - Job ID: {job_id}")
+
+        # VideoProcessRequest 객체 생성
+        video_request = VideoProcessRequest(job_id=job_id, video_url=video_url)
+
+        # 백그라운드에서 EC2 ML 서버에 요청 전송
+        background_tasks.add_task(trigger_ml_server, job_id, video_request)
+
+        return ClientProcessResponse(
+            message="Video processing started.",
+            jobId=job_id
+        )
+
+    except Exception as e:
+        logger.error(f"클라이언트 비디오 처리 요청 실패: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"요청 처리 실패: {str(e)}")
+
+
 @router.post("/process-video", response_model=VideoProcessResponse)
 async def process_video_request(
     request: VideoProcessRequest, background_tasks: BackgroundTasks
 ):
     """
-    비디오 처리 요청을 받아 EC2 ML 서버로 전달
+    ML 서버로 비디오 처리 요청 (내부 호출용)
     """
 
     try:
@@ -90,13 +153,14 @@ async def process_video_request(
         # 요청에서 받은 job_id 사용
         job_id = request.job_id
 
-        # 초기 상태 설정
-        job_status_store[job_id] = {
-            "status": "processing",
-            "progress": 0,
-            "created_at": datetime.now().isoformat(),
-            "video_url": request.video_url,
-        }
+        # 초기 상태 설정 (이미 설정되어 있으면 업데이트)
+        if job_id not in job_status_store:
+            job_status_store[job_id] = {
+                "status": "processing",
+                "progress": 0,
+                "created_at": datetime.now().isoformat(),
+                "video_url": request.video_url,
+            }
 
         logger.info(f"새 비디오 처리 요청 - Job ID: {job_id}")
 
@@ -289,7 +353,6 @@ async def _send_request_to_ml_server(job_id: str, payload: Dict[str, Any]) -> No
     """EC2 ML 서버에 처리 요청만 전송 (결과는 콜백으로 받음)"""
 
     try:
-
         # ML_API.md 명세에 따른 ML 서버 URL
         ml_api_url = os.getenv("ML_API_SERVER_URL", "http://localhost:8080")
         timeout = float(os.getenv("ML_API_TIMEOUT", "30"))  # 요청만 전송하므로 짧은 타임아웃

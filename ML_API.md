@@ -45,7 +45,7 @@ ML : /Users/yerin/Desktop/ecg-audio-analyzer/
   ```json
   {
     "filename": "example.mp4",
-    "content_type": "video/mp4"
+    "filetype": "video/mp4"
   }
   ```
 
@@ -53,8 +53,8 @@ ML : /Users/yerin/Desktop/ecg-audio-analyzer/
 
   ```json
   {
-    "upload_url": "https://s3.amazonaws.com/...",
-    "video_url": "https://bucket-name.s3.amazonaws.com/example.mp4"
+    "url": "https://s3.amazonaws.com/...",
+    "fileKey": "videos/anonymous/20250911_143020_abc12345_example.mp4"
   }
   ```
 
@@ -67,7 +67,7 @@ ML : /Users/yerin/Desktop/ecg-audio-analyzer/
 
   ```json
   {
-    "video_url": "https://bucket-name.s3.amazonaws.com/example.mp4"
+    "fileKey": "videos/anonymous/20250911_143020_abc12345_example.mp4"
   }
   ```
 
@@ -75,8 +75,8 @@ ML : /Users/yerin/Desktop/ecg-audio-analyzer/
 
   ```json
   {
-    "job_id": "123456",
-    "status": "processing"
+    "message": "Video processing started.",
+    "jobId": "123456"
   }
   ```
 
