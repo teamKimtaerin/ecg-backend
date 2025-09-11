@@ -56,21 +56,16 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
         run: |
           # Get current task definition
-<<<<<<< Updated upstream
-
-
-=======
->>>>>>> Stashed changes
           TASK_DEFINITION=$(aws ecs describe-task-definition --task-definition ${{ env.ECS_TASK_DEFINITION }} --region ${{ env.AWS_REGION }})
 
           # Create new task definition with updated environment variables and image
-          NEW_TASK_DEFINITION=$(echo $TASK_DEFINITION | jq --arg IMAGE "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" --arg SECRET_KEY "${{ secrets.SECRET_KEY }}" --arg JWT_SECRET "${{ secrets.JWT_SECRET_KEY }}" --arg AWS_ACCESS_KEY "${{ secrets.AWS_ACCESS_KEY_ID }}" --arg AWS_SECRET_KEY "${{ secrets.AWS_SECRET_ACCESS_KEY }}" --arg GOOGLE_CLIENT_ID "${{ secrets.GOOGLE_CLIENT_ID }}" --arg GOOGLE_CLIENT_SECRET "${{ secrets.GOOGLE_CLIENT_SECRET }}" --arg GOOGLE_REDIRECT_URI "${{ secrets.GOOGLE_REDIRECT_URI }}" --arg CORS_ORIGINS "${{ secrets.CORS_ORIGINS }}" --arg DB_HOST "${{ secrets.DB_HOST }}" --arg DB_PORT "${{ secrets.DB_PORT }}" --arg DB_NAME "${{ secrets.DB_NAME }}" --arg DB_USER "${{ secrets.DB_USER }}" --arg DB_PASSWORD "${{ secrets.DB_PASSWORD }}" --arg DATABASE_URL "${{ secrets.DATABASE_URL }}" '
+          NEW_TASK_DEFINITION=$(echo $TASK_DEFINITION | jq --arg IMAGE "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" --arg SECRET_KEY "${{ secrets.SECRET_KEY }}" --arg JWT_SECRET "${{ secrets.JWT_SECRET_KEY }}" --arg AWS_ACCESS_KEY "${{ secrets.AWS_ACCESS_KEY_ID }}" --arg AWS_SECRET_KEY "${{ secrets.AWS_SECRET_ACCESS_KEY }}" --arg GOOGLE_CLIENT_ID "${{ secrets.GOOGLE_CLIENT_ID }}" --arg GOOGLE_CLIENT_SECRET "${{ secrets.GOOGLE_CLIENT_SECRET }}" --arg GOOGLE_REDIRECT_URI "${{ secrets.GOOGLE_REDIRECT_URI }}" --arg CORS_ORIGINS "${{ secrets.CORS_ORIGINS }}" --arg DB_HOST "${{ secrets.DB_HOST }}" --arg DB_PORT "${{ secrets.DB_PORT }}" --arg DB_NAME "${{ secrets.DB_NAME }}" --arg DB_USER "${{ secrets.DB_USER }}" --arg DB_PASSWORD "${{ secrets.DB_PASSWORD }}" --arg DATABASE_URL "${{ secrets.DATABASE_URL }}" --arg MODEL_SERVER_URL "${{ secrets.MODEL_SERVER_URL }}" --arg S3_BUCKET_NAME "${{ secrets.S3_BUCKET_NAME }}" '
             .taskDefinition |
             .containerDefinitions[0].image = $IMAGE |
             .containerDefinitions[0].environment = [
               {"name": "AWS_DEFAULT_REGION", "value": "us-east-1"},
-              {"name": "S3_BUCKET_NAME", "value": (.containerDefinitions[0].environment[] | select(.name=="S3_BUCKET_NAME") | .value)},
-              {"name": "MODEL_SERVER_URL", "value": (.containerDefinitions[0].environment[] | select(.name=="MODEL_SERVER_URL") | .value)},
+              {"name": "S3_BUCKET_NAME", "value": $S3_BUCKET_NAME},
+              {"name": "MODEL_SERVER_URL", "value": $MODEL_SERVER_URL},
               {"name": "DB_HOST", "value": $DB_HOST},
               {"name": "DB_PORT", "value": $DB_PORT},
               {"name": "DB_NAME", "value": $DB_NAME},
