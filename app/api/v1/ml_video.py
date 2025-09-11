@@ -234,22 +234,11 @@ async def trigger_ml_server(job_id: str, request: VideoProcessRequest):
         # 2. SSH 명령 실행 (ML 서버가 스크립트인 경우)
         # 3. 메시지 큐 (SQS, RabbitMQ 등)
 
-        # EC2 ML API 서버에 HTTP 요청 전송
-        result = await _call_ml_api_server(job_id, payload)
+        # EC2 ML 서버에 비동기 요청 전송 (콜백 기반)
+        await _send_request_to_ml_server(job_id, payload)
 
-        logger.info(
-            f"ML API 호출 완료 - Job ID: {job_id}, 처리 시간: {result.get('processing_time', 0):.2f}초"
-        )
-
-        # 작업 상태를 완료로 업데이트 (결과 포함)
-        job_status_store[job_id].update(
-            {
-                "status": "completed",
-                "progress": 1.0,
-                "completed_at": datetime.now().isoformat(),
-                "results": result,
-            }
-        )
+        logger.info(f"ML 서버에 요청 전송 완료 - Job ID: {job_id}")
+        # 결과는 콜백(/result)으로 받음
 
     except Exception as e:
         logger.error(f"ML 서버 요청 실패 - Job ID: {job_id}, Error: {str(e)}")
@@ -295,35 +284,30 @@ async def handle_processing_error(job_id: str, error_message: str):
         logger.error(f"오류 후처리 중 예외 - Job ID: {job_id}, Exception: {str(e)}")
 
 
-# ML API 서버 호출 함수
-async def _call_ml_api_server(job_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
-    """EC2 ML API 서버에 HTTP 요청을 보내서 분석 결과 받기"""
+# ML 서버에 요청 전송 함수 (콜백 기반)
+async def _send_request_to_ml_server(job_id: str, payload: Dict[str, Any]) -> None:
+    """EC2 ML 서버에 처리 요청만 전송 (결과는 콜백으로 받음)"""
 
     try:
-        # EC2 ML API 서버 URL
-        ml_api_url = os.getenv("ML_API_SERVER_URL", "http://localhost:8001")
-        timeout = float(os.getenv("ML_API_TIMEOUT", "300"))  # 5분 타임아웃
+        # ML_API.md 명세에 따른 ML 서버 URL
+        ml_api_url = os.getenv("ML_API_SERVER_URL", "http://localhost:8080")
+        timeout = float(os.getenv("ML_API_TIMEOUT", "30"))  # 요청만 전송하므로 짧은 타임아웃
 
-        # API 요청 페이로드 구성
+        # ML_API.md 명세에 따른 요청 페이로드
         api_payload = {
-            "video_path": payload.get("video_path"),
+            "job_id": job_id,
             "video_url": payload.get("video_url"),
-            "enable_gpu": payload.get("enable_gpu", True),
-            "emotion_detection": payload.get("emotion_detection", True),
-            "language": payload.get("language", "auto"),
-            "max_workers": payload.get("max_workers", 4),
-            "output_path": None,  # 필요시 추가
         }
 
-        logger.info(f"ML API 호출 시작 - Job ID: {job_id}, URL: {ml_api_url}")
-        logger.debug(f"API 요청 데이터: {api_payload}")
+        logger.info(f"ML 서버 요청 전송 시작 - Job ID: {job_id}, URL: {ml_api_url}")
+        logger.debug(f"요청 데이터: {api_payload}")
 
-        # HTTP API 호출
+        # ML 서버에 처리 요청만 전송
         timeout_config = aiohttp.ClientTimeout(total=timeout)
 
         async with aiohttp.ClientSession(timeout=timeout_config) as session:
             async with session.post(
-                f"{ml_api_url}/transcribe",
+                f"{ml_api_url}/api/upload-video/process-video",
                 json=api_payload,
                 headers={
                     "Content-Type": "application/json",
@@ -332,25 +316,21 @@ async def _call_ml_api_server(job_id: str, payload: Dict[str, Any]) -> Dict[str,
             ) as response:
                 if response.status == 200:
                     result = await response.json()
-
-                    if result.get("success", False):
-                        logger.info(f"ML API 호출 성공 - Job ID: {job_id}")
-                        return result
-                    else:
-                        raise Exception(f"ML 분석 실패: {result}")
-
+                    logger.info(
+                        f"ML 서버 요청 접수 성공 - Job ID: {job_id}, Response: {result}"
+                    )
                 else:
                     error_text = await response.text()
-                    raise Exception(f"ML API 응답 오류 {response.status}: {error_text}")
+                    raise Exception(f"ML 서버 요청 실패 {response.status}: {error_text}")
 
     except asyncio.TimeoutError:
-        logger.error(f"ML API 호출 타임아웃 - Job ID: {job_id}")
-        raise Exception(f"ML API 호출 타임아웃 ({timeout}초)")
+        logger.error(f"ML 서버 요청 타임아웃 - Job ID: {job_id}")
+        raise Exception(f"ML 서버 요청 타임아웃 ({timeout}초)")
 
     except aiohttp.ClientConnectorError as e:
-        logger.error(f"ML API 서버 연결 실패 - Job ID: {job_id}, Error: {str(e)}")
-        raise Exception(f"ML API 서버 연결 실패: {str(e)}")
+        logger.error(f"ML 서버 연결 실패 - Job ID: {job_id}, Error: {str(e)}")
+        raise Exception(f"ML 서버 연결 실패: {str(e)}")
 
     except Exception as e:
-        logger.error(f"ML API 호출 실패 - Job ID: {job_id}, Error: {str(e)}")
+        logger.error(f"ML 서버 요청 실패 - Job ID: {job_id}, Error: {str(e)}")
         raise
