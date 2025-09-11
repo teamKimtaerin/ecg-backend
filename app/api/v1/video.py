@@ -126,5 +126,3 @@ async def generate_download_url(file_key: str):
     except Exception as e:
         print(f"[S3 DOWNLOAD ERROR] Failed to generate download URL: {str(e)}")
         raise HTTPException(status_code=500, detail=f"S3 error: {str(e)}")
-
-
