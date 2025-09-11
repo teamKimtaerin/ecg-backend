@@ -2,6 +2,7 @@
 """
 Jobs 테이블 생성 스크립트 (PostgreSQL)
 """
+
 import os
 import sys
 import psycopg2
