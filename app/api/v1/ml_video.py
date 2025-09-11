@@ -289,7 +289,6 @@ async def _send_request_to_ml_server(job_id: str, payload: Dict[str, Any]) -> No
     """EC2 ML 서버에 처리 요청만 전송 (결과는 콜백으로 받음)"""
 
     try:
-
         # ML_API.md 명세에 따른 ML 서버 URL
         ml_api_url = os.getenv("ML_API_SERVER_URL", "http://localhost:8080")
         timeout = float(os.getenv("ML_API_TIMEOUT", "30"))  # 요청만 전송하므로 짧은 타임아웃
