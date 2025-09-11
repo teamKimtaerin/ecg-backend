@@ -198,6 +198,7 @@ async def get_job_status(job_id: str):
         return response
 
 
+
 @router.get("/jobs", response_model=List[Dict[str, Any]])
 async def list_all_jobs():
     """모든 작업 목록 조회 (개발/테스트용)"""
