@@ -70,7 +70,7 @@ class JobStatusResponse(BaseModel):
 job_status_store: Dict[str, Dict[str, Any]] = {}
 
 # 환경변수에서 ML 서버 설정 읽기
-ML_SERVER_URL = os.getenv("ML_API_SERVER_URL", "http://localhost:8001")
+ML_SERVER_URL = os.getenv("MODEL_SERVER_URL", "http://localhost:8001")
 FASTAPI_BASE_URL = os.getenv("FASTAPI_BASE_URL", "http://localhost:8000")
 
 
