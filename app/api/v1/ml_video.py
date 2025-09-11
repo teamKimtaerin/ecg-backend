@@ -70,7 +70,7 @@ class VideoProcessResponse(BaseModel):
 
 
 class JobStatusResponse(BaseModel):
-    """작업 상태 응답"""
+    """작업 상태 응답 (기존 엔드포인트용)"""
 
     job_id: str
     status: str
