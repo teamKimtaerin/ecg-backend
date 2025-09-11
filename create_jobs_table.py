@@ -2,7 +2,6 @@
 """
 Jobs 테이블 생성 스크립트 (PostgreSQL)
 """
-
 import os
 import sys
 import psycopg2
@@ -23,7 +22,7 @@ def get_db_config():
         'password': os.getenv('DB_PASSWORD', 'BE%BSIZ<BIQi4o1)')
     }
 
-def ():
+def create_jobs_table():
     """Jobs 테이블 생성"""
 
     # 테이블 생성 SQL
