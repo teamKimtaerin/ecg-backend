@@ -236,7 +236,7 @@ async def trigger_ml_server(job_id: str, request: VideoProcessRequest):
 
         # EC2 ML 서버에 비동기 요청 전송 (콜백 기반)
         await _send_request_to_ml_server(job_id, payload)
-        
+
         logger.info(f"ML 서버에 요청 전송 완료 - Job ID: {job_id}")
         # 결과는 콜백(/result)으로 받음
 
@@ -289,7 +289,7 @@ async def _send_request_to_ml_server(job_id: str, payload: Dict[str, Any]) -> No
     """EC2 ML 서버에 처리 요청만 전송 (결과는 콜백으로 받음)"""
 
     try:
-        # ML_API.md 명세에 따른 ML 서버 URL 
+        # ML_API.md 명세에 따른 ML 서버 URL
         ml_api_url = os.getenv("ML_API_SERVER_URL", "http://localhost:8080")
         timeout = float(os.getenv("ML_API_TIMEOUT", "30"))  # 요청만 전송하므로 짧은 타임아웃
 
@@ -316,7 +316,9 @@ async def _send_request_to_ml_server(job_id: str, payload: Dict[str, Any]) -> No
             ) as response:
                 if response.status == 200:
                     result = await response.json()
-                    logger.info(f"ML 서버 요청 접수 성공 - Job ID: {job_id}, Response: {result}")
+                    logger.info(
+                        f"ML 서버 요청 접수 성공 - Job ID: {job_id}, Response: {result}"
+                    )
                 else:
                     error_text = await response.text()
                     raise Exception(f"ML 서버 요청 실패 {response.status}: {error_text}")
