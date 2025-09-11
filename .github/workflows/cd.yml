@@ -56,8 +56,11 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
         run: |
           # Get current task definition
+<<<<<<< Updated upstream
 
 
+=======
+>>>>>>> Stashed changes
           TASK_DEFINITION=$(aws ecs describe-task-definition --task-definition ${{ env.ECS_TASK_DEFINITION }} --region ${{ env.AWS_REGION }})
 
           # Create new task definition with updated environment variables and image
