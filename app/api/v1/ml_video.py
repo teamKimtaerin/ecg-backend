@@ -83,7 +83,7 @@ class JobStatusResponse(BaseModel):
 job_status_store: Dict[str, Dict[str, Any]] = {}
 
 # 환경변수에서 ML 서버 설정 읽기
-ML_SERVER_URL = os.getenv("MODEL_SERVER_URL", "http://localhost:8001")
+MODEL_SERVER_URL = os.getenv("MODEL_SERVER_URL", "http://localhost:8001")
 FASTAPI_BASE_URL = os.getenv("FASTAPI_BASE_URL", "http://localhost:8000")
 
 
@@ -102,13 +102,17 @@ async def request_process(
 
         # job_id 생성
         import uuid
+
         job_id = str(uuid.uuid4())
 
         # S3 URL 생성
         import os
+
         s3_bucket_name = os.getenv("S3_BUCKET_NAME", "default-bucket")
         aws_region = os.getenv("AWS_REGION", "us-east-1")
-        video_url = f"https://{s3_bucket_name}.s3.{aws_region}.amazonaws.com/{request.fileKey}"
+        video_url = (
+            f"https://{s3_bucket_name}.s3.{aws_region}.amazonaws.com/{request.fileKey}"
+        )
 
         # 초기 상태 설정
         job_status_store[job_id] = {
@@ -127,10 +131,7 @@ async def request_process(
         # 백그라운드에서 EC2 ML 서버에 요청 전송
         background_tasks.add_task(trigger_ml_server, job_id, video_request)
 
-        return ClientProcessResponse(
-            message="Video processing started.",
-            jobId=job_id
-        )
+        return ClientProcessResponse(message="Video processing started.", jobId=job_id)
 
     except Exception as e:
         logger.error(f"클라이언트 비디오 처리 요청 실패: {str(e)}")

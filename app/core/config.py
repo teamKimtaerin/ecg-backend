@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     )
 
     # ML Server Settings
-    ml_server_url: str = Field(
+    MODEL_SERVER_URL: str = Field(
         ..., description="ML server URL", alias="MODEL_SERVER_URL"
     )
 
