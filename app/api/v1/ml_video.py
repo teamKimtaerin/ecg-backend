@@ -18,7 +18,7 @@ import aiohttp
 # 로거 설정
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1/ml", tags=["ml-video"])
+router = APIRouter(prefix="/api/upload-video", tags=["ml-video"])
 
 
 # Pydantic 모델들
@@ -35,22 +35,14 @@ class MLResultRequest(BaseModel):
     """ML 서버로부터 받는 결과 요청"""
 
     job_id: str
-    status: ProcessingStatus
-    progress: float  # 0.0 ~ 1.0
-    results: Optional[Dict[str, Any]] = None
-    error_message: Optional[str] = None
-    timestamp: str
+    result: Dict[str, Any]
 
 
 class VideoProcessRequest(BaseModel):
     """비디오 처리 요청"""
 
-    video_path: Optional[str] = None
-    video_url: Optional[str] = None
-    enable_gpu: bool = True
-    emotion_detection: bool = True
-    language: str = "auto"
-    max_workers: int = 4
+    job_id: str
+    video_url: str
 
 
 class VideoProcessResponse(BaseModel):
@@ -79,7 +71,7 @@ class JobStatusResponse(BaseModel):
 job_status_store: Dict[str, Dict[str, Any]] = {}
 
 # 환경변수에서 ML 서버 설정 읽기
-ML_SERVER_URL = os.getenv("ML_SERVER_URL", "http://localhost:8001")
+ML_SERVER_URL = os.getenv("ML_API_SERVER_URL", "http://localhost:8001")
 FASTAPI_BASE_URL = os.getenv("FASTAPI_BASE_URL", "http://localhost:8000")
 
 
@@ -93,22 +85,20 @@ async def process_video_request(
 
     try:
         # 입력 검증
-        if not request.video_path and not request.video_url:
+        if not request.video_url:
             raise HTTPException(
-                status_code=400, detail="video_path 또는 video_url 중 하나는 필수입니다"
+                status_code=400, detail="video_url은 필수입니다"
             )
 
-        # 고유 작업 ID 생성
-        job_id = str(uuid.uuid4())
+        # 요청에서 받은 job_id 사용
+        job_id = request.job_id
 
         # 초기 상태 설정
         job_status_store[job_id] = {
-            "status": "queued",
-            "progress": 0.0,
+            "status": "processing",
+            "progress": 0,
             "created_at": datetime.now().isoformat(),
-            "video_path": request.video_path,
             "video_url": request.video_url,
-            "config": request.dict(),
         }
 
         logger.info(f"새 비디오 처리 요청 - Job ID: {job_id}")
@@ -116,12 +106,12 @@ async def process_video_request(
         # 백그라운드에서 EC2 ML 서버에 요청 전송
         background_tasks.add_task(trigger_ml_server, job_id, request)
 
-        status_url = f"/api/v1/job-status/{job_id}"
+        status_url = f"/api/upload-video/status/{job_id}"
 
         return VideoProcessResponse(
             job_id=job_id,
-            status="queued",
-            message="비디오 처리 요청이 접수되어 ML 서버로 전송됩니다",
+            status="processing",
+            message="비디오 처리가 시작되었습니다",
             status_url=status_url,
         )
 
@@ -130,77 +120,46 @@ async def process_video_request(
         raise HTTPException(status_code=500, detail=f"요청 처리 실패: {str(e)}")
 
 
-@router.post("/ml-results")
+@router.post("/result")
 async def receive_ml_results(
     ml_result: MLResultRequest, background_tasks: BackgroundTasks
 ):
     """
-    EC2 ML 서버로부터 분석 결과를 받는 엔드포인트
+    ML 서버로부터 분석 결과를 받는 엔드포인트
 
     ML 서버가 호출하는 엔드포인트:
-    POST http://fastapi-backend:8000/api/v1/ml-results
+    POST http://fastapi-backend:8000/api/upload-video/result
     """
 
     try:
         job_id = ml_result.job_id
 
-        logger.info(
-            f"ML 결과 수신 - Job ID: {job_id}, Status: {ml_result.status.value}, Progress: {ml_result.progress:.1%}"
-        )
+        logger.info(f"ML 결과 수신 - Job ID: {job_id}")
 
         # 작업이 존재하는지 확인
         if job_id not in job_status_store:
             logger.warning(f"존재하지 않는 Job ID: {job_id}")
             raise HTTPException(status_code=404, detail="해당 작업을 찾을 수 없습니다")
 
-        # 작업 상태 업데이트
+        # 작업 상태를 완료로 업데이트
         job_status_store[job_id].update(
             {
-                "status": ml_result.status.value,
-                "progress": ml_result.progress,
+                "status": "completed",
+                "progress": 100,
                 "last_updated": datetime.now().isoformat(),
-                "ml_timestamp": ml_result.timestamp,
+                "result": ml_result.result,
             }
         )
 
-        # 상태별 처리
-        if ml_result.status == ProcessingStatus.STARTED:
-            logger.info(f"작업 시작됨 - Job ID: {job_id}")
+        logger.info(f"작업 완료 - Job ID: {job_id}")
 
-        elif ml_result.status == ProcessingStatus.PROCESSING:
-            # 진행 상황 메시지 업데이트
-            if ml_result.results and "message" in ml_result.results:
-                job_status_store[job_id]["current_message"] = ml_result.results[
-                    "message"
-                ]
-                logger.info(
-                    f"진행 상황 - Job ID: {job_id}, Message: {ml_result.results['message']}"
-                )
-
-        elif ml_result.status == ProcessingStatus.COMPLETED:
-            # 완료된 결과 처리
-            logger.info(f"작업 완료 - Job ID: {job_id}")
-            job_status_store[job_id]["results"] = ml_result.results
-
-            # 백그라운드에서 결과 후처리
-            background_tasks.add_task(
-                process_completed_results, job_id, ml_result.results
-            )
-
-        elif ml_result.status == ProcessingStatus.FAILED:
-            # 오류 처리
-            logger.error(f"작업 실패 - Job ID: {job_id}, Error: {ml_result.error_message}")
-            job_status_store[job_id]["error_message"] = ml_result.error_message
-
-            # 백그라운드에서 오류 후처리
-            background_tasks.add_task(
-                handle_processing_error, job_id, ml_result.error_message
-            )
+        # 백그라운드에서 결과 후처리
+        background_tasks.add_task(
+            process_completed_results, job_id, ml_result.result
+        )
 
         return {
-            "status": "success",
-            "message": "ML 결과가 성공적으로 처리되었습니다",
-            "job_id": job_id,
+            "status": "received"
         }
 
     except HTTPException:
@@ -210,25 +169,26 @@ async def receive_ml_results(
         raise HTTPException(status_code=500, detail=f"결과 처리 실패: {str(e)}")
 
 
-@router.get("/job-status/{job_id}", response_model=JobStatusResponse)
+@router.get("/status/{job_id}")
 async def get_job_status(job_id: str):
-    """작업 상태 조회"""
+    """작업 상태 조회 (클라이언트 폴링용)"""
 
     if job_id not in job_status_store:
         raise HTTPException(status_code=404, detail="해당 작업을 찾을 수 없습니다")
 
     job_data = job_status_store[job_id]
 
-    return JobStatusResponse(
-        job_id=job_id,
-        status=job_data["status"],
-        progress=job_data.get("progress", 0.0),
-        created_at=job_data["created_at"],
-        last_updated=job_data.get("last_updated"),
-        current_message=job_data.get("current_message"),
-        results=job_data.get("results"),
-        error_message=job_data.get("error_message"),
-    )
+    if job_data["status"] == "processing":
+        return {
+            "job_id": job_id,
+            "status": "processing",
+            "progress": job_data.get("progress", 0)
+        }
+    else:
+        return {
+            "job_id": job_id,
+            "status": "completed"
+        }
 
 
 @router.get("/jobs", response_model=List[Dict[str, Any]])
