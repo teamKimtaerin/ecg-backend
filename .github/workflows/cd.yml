@@ -15,7 +15,7 @@ jobs:
   deploy:
     name: Deploy to ECS Fargate
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -42,11 +42,11 @@ jobs:
           # Build a docker container and push it to ECR
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          
+
           # Also tag as latest
           docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
-          
+
           echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
       - name: Update task definition and deploy to ECS
@@ -56,11 +56,12 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
         run: |
           # Get current task definition
+
           TASK_DEFINITION=$(aws ecs describe-task-definition --task-definition ${{ env.ECS_TASK_DEFINITION }} --region ${{ env.AWS_REGION }})
-          
+
           # Create new task definition with updated environment variables and image
           NEW_TASK_DEFINITION=$(echo $TASK_DEFINITION | jq --arg IMAGE "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" --arg SECRET_KEY "${{ secrets.SECRET_KEY }}" --arg JWT_SECRET "${{ secrets.JWT_SECRET_KEY }}" --arg AWS_ACCESS_KEY "${{ secrets.AWS_ACCESS_KEY_ID }}" --arg AWS_SECRET_KEY "${{ secrets.AWS_SECRET_ACCESS_KEY }}" --arg GOOGLE_CLIENT_ID "${{ secrets.GOOGLE_CLIENT_ID }}" --arg GOOGLE_CLIENT_SECRET "${{ secrets.GOOGLE_CLIENT_SECRET }}" --arg GOOGLE_REDIRECT_URI "${{ secrets.GOOGLE_REDIRECT_URI }}" --arg CORS_ORIGINS "${{ secrets.CORS_ORIGINS }}" --arg DB_HOST "${{ secrets.DB_HOST }}" --arg DB_PORT "${{ secrets.DB_PORT }}" --arg DB_NAME "${{ secrets.DB_NAME }}" --arg DB_USER "${{ secrets.DB_USER }}" --arg DB_PASSWORD "${{ secrets.DB_PASSWORD }}" --arg DATABASE_URL "${{ secrets.DATABASE_URL }}" '
-            .taskDefinition | 
+            .taskDefinition |
             .containerDefinitions[0].image = $IMAGE |
             .containerDefinitions[0].environment = [
               {"name": "AWS_DEFAULT_REGION", "value": "us-east-1"},
@@ -80,15 +81,15 @@ jobs:
               {"name": "GOOGLE_CLIENT_SECRET", "value": $GOOGLE_CLIENT_SECRET},
               {"name": "GOOGLE_REDIRECT_URI", "value": $GOOGLE_REDIRECT_URI},
               {"name": "CORS_ORIGINS", "value": $CORS_ORIGINS}
-            ] | 
+            ] |
             del(.taskDefinitionArn) | del(.revision) | del(.status) | del(.requiresAttributes) | del(.placementConstraints) | del(.compatibilities) | del(.registeredAt) | del(.registeredBy)')
-          
+
           # Register new task definition
           echo $NEW_TASK_DEFINITION > task-definition.json
           NEW_REVISION=$(aws ecs register-task-definition --region ${{ env.AWS_REGION }} --cli-input-json file://task-definition.json --query 'taskDefinition.revision')
-          
+
           echo "New task definition revision: $NEW_REVISION"
-          
+
           # Update service with new task definition
           aws ecs update-service \
             --cluster ${{ env.ECS_CLUSTER }} \
