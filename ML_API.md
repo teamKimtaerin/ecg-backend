@@ -173,5 +173,3 @@ ML : /Users/yerin/Desktop/ecg-audio-analyzer/
     "result": { ... }
   }
   ```
-
-읽고 분석해서 ml-video.py가 제대로 작성되었는지 확인해줘
