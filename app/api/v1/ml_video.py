@@ -355,7 +355,7 @@ async def _send_request_to_ml_server(job_id: str, payload: Dict[str, Any]) -> No
 
     try:
         # ML_API.md 명세에 따른 ML 서버 URL
-        ml_api_url = os.getenv("ML_API_SERVER_URL", "http://localhost:8080")
+        ml_api_url = os.getenv("MODEL_SERVER_URL", "http://localhost:8080")
         timeout = float(os.getenv("ML_API_TIMEOUT", "30"))  # 요청만 전송하므로 짧은 타임아웃
 
         # ML_API.md 명세에 따른 요청 페이로드
