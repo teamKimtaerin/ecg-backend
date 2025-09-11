@@ -13,15 +13,20 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 def get_db_config():
     """환경 변수에서 데이터베이스 설정 가져오기"""
     return {
-        'host': os.getenv('DB_HOST', 'ecg-project-pipeline-dev-postgres.c6p4wa24mn5g.us-east-1.rds.amazonaws.com'),
-        'port': int(os.getenv('DB_PORT', 5432)),
-        'database': os.getenv('DB_NAME', 'ecgdb'),
-        'user': os.getenv('DB_USER', 'postgres'),
-        'password': os.getenv('DB_PASSWORD', 'BE%BSIZ<BIQi4o1)')
+        "host": os.getenv(
+            "DB_HOST",
+            "ecg-project-pipeline-dev-postgres.c6p4wa24mn5g.us-east-1.rds.amazonaws.com",
+        ),
+        "port": int(os.getenv("DB_PORT", 5432)),
+        "database": os.getenv("DB_NAME", "ecgdb"),
+        "user": os.getenv("DB_USER", "postgres"),
+        "password": os.getenv("DB_PASSWORD", "BE%BSIZ<BIQi4o1)"),
     }
+
 
 def create_jobs_table():
     """Jobs 테이블 생성"""
@@ -58,27 +63,33 @@ def create_jobs_table():
         cursor.execute(create_table_sql)
 
         # 테이블 목록 확인
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT tablename FROM pg_tables
             WHERE schemaname = 'public'
             ORDER BY tablename;
-        """)
+        """
+        )
 
-        tables = [row['tablename'] for row in cursor.fetchall()]
+        tables = [row["tablename"] for row in cursor.fetchall()]
         logger.info(f"현재 테이블 목록: {tables}")
 
         # 테이블 구조 확인
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT column_name, data_type, is_nullable, column_default
             FROM information_schema.columns
             WHERE table_name = 'jobs'
             ORDER BY ordinal_position;
-        """)
+        """
+        )
 
         columns = cursor.fetchall()
         logger.info("Jobs 테이블 구조:")
         for col in columns:
-            logger.info(f"  - {col['column_name']}: {col['data_type']} (nullable: {col['is_nullable']})")
+            logger.info(
+                f"  - {col['column_name']}: {col['data_type']} (nullable: {col['is_nullable']})"
+            )
 
         # 변경 사항 커밋
         conn.commit()
@@ -88,16 +99,17 @@ def create_jobs_table():
 
     except Exception as e:
         logger.error(f"❌ 테이블 생성 실패: {str(e)}")
-        if 'conn' in locals():
+        if "conn" in locals():
             conn.rollback()
         return False
 
     finally:
-        if 'cursor' in locals():
+        if "cursor" in locals():
             cursor.close()
-        if 'conn' in locals():
+        if "conn" in locals():
             conn.close()
         logger.info("데이터베이스 연결 종료")
+
 
 if __name__ == "__main__":
     success = create_jobs_table()
