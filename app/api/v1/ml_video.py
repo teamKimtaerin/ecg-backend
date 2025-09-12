@@ -208,7 +208,9 @@ async def receive_ml_results(
     try:
         job_id = ml_result.job_id
 
-        logger.info(f"ML 결과 수신 - Job ID: {job_id}, Status: {ml_result.status}, Progress: {ml_result.progress}")
+        logger.info(
+            f"ML 결과 수신 - Job ID: {job_id}, Status: {ml_result.status}, Progress: {ml_result.progress}"
+        )
 
         # PostgreSQL에서 작업 상태 업데이트
         job_service = JobService(db)
@@ -223,30 +225,34 @@ async def receive_ml_results(
         if ml_result.status == "processing":
             # 진행 상황 업데이트 (message는 로그로만 기록)
             success = job_service.update_job_status(
-                job_id=job_id, 
-                status="processing", 
-                progress=ml_result.progress or 0
+                job_id=job_id, status="processing", progress=ml_result.progress or 0
             )
-            logger.info(f"진행 상황 업데이트 - Job ID: {job_id}, Progress: {ml_result.progress}%, Message: {ml_result.message}")
-            
+            logger.info(
+                f"진행 상황 업데이트 - Job ID: {job_id}, Progress: {ml_result.progress}%, Message: {ml_result.message}"
+            )
+
         elif ml_result.status in ["completed", "failed"]:
             # 최종 결과 처리
             final_status = "completed" if ml_result.status == "completed" else "failed"
             success = job_service.update_job_status(
-                job_id=job_id, 
-                status=final_status, 
+                job_id=job_id,
+                status=final_status,
                 progress=100 if final_status == "completed" else job.progress,
                 result=ml_result.result,
-                error_message=ml_result.error_message
+                error_message=ml_result.error_message,
             )
-            
+
             if final_status == "completed":
                 logger.info(f"작업 완료 - Job ID: {job_id}")
                 # 백그라운드에서 결과 후처리
                 if ml_result.result:
-                    background_tasks.add_task(process_completed_results, job_id, ml_result.result)
+                    background_tasks.add_task(
+                        process_completed_results, job_id, ml_result.result
+                    )
             else:
-                logger.error(f"작업 실패 - Job ID: {job_id}, Error: {ml_result.error_message}")
+                logger.error(
+                    f"작업 실패 - Job ID: {job_id}, Error: {ml_result.error_message}"
+                )
         else:
             # 알 수 없는 상태
             logger.warning(f"알 수 없는 상태 - Job ID: {job_id}, Status: {ml_result.status}")
