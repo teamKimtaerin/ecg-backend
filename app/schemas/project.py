@@ -1,10 +1,11 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 
 
 class ProjectSettings(BaseModel):
     """프로젝트 설정"""
+
     auto_save_enabled: bool = True
     auto_save_interval: int = 60  # 초 단위
     default_speaker: str = "Speaker"
@@ -13,6 +14,7 @@ class ProjectSettings(BaseModel):
 
 class VideoMetadata(BaseModel):
     """비디오 메타데이터"""
+
     width: Optional[int] = None
     height: Optional[int] = None
     frame_rate: Optional[float] = None
@@ -22,6 +24,7 @@ class VideoMetadata(BaseModel):
 
 class WordSchema(BaseModel):
     """단어 스키마"""
+
     id: str
     text: str
     start: float
@@ -33,6 +36,7 @@ class WordSchema(BaseModel):
 
 class ClipItemSchema(BaseModel):
     """클립 아이템 스키마"""
+
     id: str
     timeline: str
     speaker: str
@@ -45,6 +49,7 @@ class ClipItemSchema(BaseModel):
 
 class ProjectBase(BaseModel):
     """프로젝트 기본 스키마"""
+
     name: str
     settings: Optional[ProjectSettings] = None
     video_url: Optional[str] = None
@@ -56,6 +61,7 @@ class ProjectBase(BaseModel):
 
 class ProjectCreate(ProjectBase):
     """프로젝트 생성 스키마"""
+
     id: str
     clips: List[ClipItemSchema] = []
     media_id: Optional[str] = None
@@ -63,6 +69,7 @@ class ProjectCreate(ProjectBase):
 
 class ProjectUpdate(BaseModel):
     """프로젝트 업데이트 스키마"""
+
     name: Optional[str] = None
     clips: Optional[List[ClipItemSchema]] = None
     settings: Optional[ProjectSettings] = None
@@ -76,6 +83,7 @@ class ProjectUpdate(BaseModel):
 
 class ProjectResponse(ProjectBase):
     """프로젝트 응답 스키마"""
+
     id: str
     clips: List[ClipItemSchema]
     created_at: datetime
@@ -84,13 +92,14 @@ class ProjectResponse(ProjectBase):
     sync_status: str = "pending"
     version: int = 1
     change_count: int = 0
-    
+
     class Config:
         from_attributes = True
 
 
 class ProjectListResponse(BaseModel):
     """프로젝트 목록 응답 스키마"""
+
     id: str
     name: str
     last_modified: datetime
@@ -98,13 +107,14 @@ class ProjectListResponse(BaseModel):
     clip_count: int = 0
     video_duration: Optional[float] = None
     sync_status: str = "pending"
-    
+
     class Config:
         from_attributes = True
 
 
 class ProjectSyncResponse(BaseModel):
     """프로젝트 동기화 응답"""
+
     success: bool
     synced_at: datetime
     version: int
@@ -112,6 +122,7 @@ class ProjectSyncResponse(BaseModel):
 
 class ConflictResponse(BaseModel):
     """충돌 응답"""
+
     error: str = "CONFLICT"
     current_version: int
     your_version: int
