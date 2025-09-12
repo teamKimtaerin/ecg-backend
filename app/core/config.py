@@ -38,7 +38,7 @@ class Settings(BaseSettings):
         ..., description="ML server URL", alias="MODEL_SERVER_URL"
     )
     ml_api_server_url: str = Field(
-        default="http://localhost:8080", description="ML API server URL"
+        default="http://host.docker.internal:8080", description="ML API server URL"
     )
 
     # Database Settings
