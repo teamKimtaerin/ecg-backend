@@ -7,15 +7,14 @@ EC2 ML 서버로부터 분석 결과를 받고, 비디오 처리 요청을 관�
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from pydantic import BaseModel
 from typing import Dict, Any, Optional, List
-from datetime import datetime
 from enum import Enum
 import asyncio
 import logging
-import os
 import aiohttp
 from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.services.job_service import JobService
+from app.core.config import settings
 
 # 로거 설정
 logger = logging.getLogger(__name__)
@@ -72,6 +71,7 @@ class VideoProcessResponse(BaseModel):
     status: str
     message: str
     status_url: str
+    estimated_time: Optional[int] = None  # 예상 처리 시간 (초)
 
 
 class JobStatusResponse(BaseModel):
@@ -90,8 +90,9 @@ class JobStatusResponse(BaseModel):
 # PostgreSQL 기반 작업 상태 관리 (메모리 저장소에서 마이그레이션됨)
 
 # 환경변수에서 ML 서버 설정 읽기
-MODEL_SERVER_URL = os.getenv("MODEL_SERVER_URL", "http://localhost:8001")
-FASTAPI_BASE_URL = os.getenv("FASTAPI_BASE_URL", "http://localhost:8000")
+MODEL_SERVER_URL = settings.MODEL_SERVER_URL
+FASTAPI_BASE_URL = settings.FASTAPI_BASE_URL
+ML_API_TIMEOUT = settings.ML_API_TIMEOUT
 
 
 @router.post("/request-process", response_model=ClientProcessResponse)
@@ -138,8 +139,8 @@ async def request_process(
         # VideoProcessRequest 객체 생성
         video_request = VideoProcessRequest(job_id=job_id, video_url=video_url)
 
-        # 백그라운드에서 EC2 ML 서버에 요청 전송
-        background_tasks.add_task(trigger_ml_server, job_id, video_request)
+        # 백그라운드에서 EC2 ML 서버에 요청 전송 (DB 세션 전달)
+        background_tasks.add_task(trigger_ml_server, job_id, video_request, db)
 
         return ClientProcessResponse(message="Video processing started.", jobId=job_id)
 
@@ -148,48 +149,8 @@ async def request_process(
         raise HTTPException(status_code=500, detail=f"요청 처리 실패: {str(e)}")
 
 
-@router.post("/process-video", response_model=VideoProcessResponse)
-async def process_video_request(
-    request: VideoProcessRequest, background_tasks: BackgroundTasks
-):
-    """
-    ML 서버로 비디오 처리 요청 (내부 호출용)
-    """
-
-    try:
-        # 입력 검증
-        if not request.video_url:
-            raise HTTPException(status_code=400, detail="video_url은 필수입니다")
-
-        # 요청에서 받은 job_id 사용
-        job_id = request.job_id
-
-        # 초기 상태 설정 (이미 설정되어 있으면 업데이트)
-        if job_id not in job_status_store:
-            job_status_store[job_id] = {
-                "status": "processing",
-                "progress": 0,
-                "created_at": datetime.now().isoformat(),
-                "video_url": request.video_url,
-            }
-
-        logger.info(f"새 비디오 처리 요청 - Job ID: {job_id}")
-
-        # 백그라운드에서 EC2 ML 서버에 요청 전송
-        background_tasks.add_task(trigger_ml_server, job_id, request)
-
-        status_url = f"/api/upload-video/status/{job_id}"
-
-        return VideoProcessResponse(
-            job_id=job_id,
-            status="processing",
-            message="비디오 처리가 시작되었습니다",
-            status_url=status_url,
-        )
-
-    except Exception as e:
-        logger.error(f"비디오 처리 요청 실패: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"요청 처리 실패: {str(e)}")
+# /process-video 엔드포인트는 제거됨 (내부용으로 더 이상 필요하지 않음)
+# 모든 비디오 처리는 /request-process를 통해 진행
 
 
 @router.post("/result")
@@ -324,42 +285,32 @@ async def list_all_jobs(db: Session = Depends(get_db)):
 
 
 # 백그라운드 태스크 함수들
-async def trigger_ml_server(job_id: str, request: VideoProcessRequest):
+async def trigger_ml_server(job_id: str, request: VideoProcessRequest, db_session=None):
     """EC2 ML 서버에 분석 요청을 전송하는 백그라운드 태스크"""
 
     try:
         logger.info(f"ML 서버에 요청 전송 - Job ID: {job_id}")
 
-        # ML 서버로 전송할 페이로드 구성
+        # ML 서버로 전송할 페이로드 구성 (Backend Server 통합 가이드에 따라 확장)
         payload = {
             "job_id": job_id,
             "video_url": request.video_url,
-            "fastapi_base_url": FASTAPI_BASE_URL,
-            "enable_gpu": True,  # 기본값
-            "emotion_detection": True,  # 기본값
-            "language": "auto",  # 기본값
-            "max_workers": 4,  # 기본값
+            "fastapi_base_url": FASTAPI_BASE_URL,  # 동적 콜백 URL 제공
+            "enable_gpu": True,  # GPU 사용 여부
+            "emotion_detection": True,  # 감정 분석 여부
+            "language": "auto",  # 언어 설정 (기본값: auto)
+            "max_workers": 4,  # 최대 워커 수
         }
 
-        # 현재는 단순히 ML 서버에 Python 스크립트 실행 명령을 보낸다고 가정
-        # 실제로는 다음 중 하나의 방식을 사용:
-        # 1. HTTP API 호출 (ML 서버가 FastAPI 앱인 경우)
-        # 2. SSH 명령 실행 (ML 서버가 스크립트인 경우)
-        # 3. 메시지 큐 (SQS, RabbitMQ 등)
-
         # EC2 ML 서버에 비동기 요청 전송 (콜백 기반)
-        await _send_request_to_ml_server(job_id, payload)
+        await _send_request_to_ml_server(job_id, payload, db_session)
 
         logger.info(f"ML 서버에 요청 전송 완료 - Job ID: {job_id}")
         # 결과는 콜백(/result)으로 받음
 
     except Exception as e:
         logger.error(f"ML 서버 요청 실패 - Job ID: {job_id}, Error: {str(e)}")
-
-        # 작업 상태를 실패로 업데이트
-        job_status_store[job_id].update(
-            {"status": "failed", "error_message": f"ML 서버 요청 실패: {str(e)}"}
-        )
+        # 에러는 이미 _send_request_to_ml_server에서 처리됨
 
 
 async def process_completed_results(job_id: str, results: Dict[str, Any]):
@@ -398,18 +349,23 @@ async def handle_processing_error(job_id: str, error_message: str):
 
 
 # ML 서버에 요청 전송 함수 (콜백 기반)
-async def _send_request_to_ml_server(job_id: str, payload: Dict[str, Any]) -> None:
+async def _send_request_to_ml_server(job_id: str, payload: Dict[str, Any], db_session=None) -> None:
     """EC2 ML 서버에 처리 요청만 전송 (결과는 콜백으로 받음)"""
 
     try:
         # ML_API.md 명세에 따른 ML 서버 URL
-        ml_api_url = os.getenv("MODEL_SERVER_URL", "http://localhost:8080")
-        timeout = float(os.getenv("ML_API_TIMEOUT", "30"))  # 요청만 전송하므로 짧은 타임아웃
+        ml_api_url = MODEL_SERVER_URL
+        timeout = float(ML_API_TIMEOUT)  # 대용량 비디오 처리를 위해 5분으로 증가
 
-        # ML_API.md 명세에 따른 요청 페이로드
+        # ML_API.md 명세에 따른 요청 페이로드 (확장된 파라미터 포함)
         api_payload = {
             "job_id": job_id,
             "video_url": payload.get("video_url"),
+            "fastapi_base_url": payload.get("fastapi_base_url"),
+            "language": payload.get("language", "auto"),
+            "enable_gpu": payload.get("enable_gpu", True),
+            "emotion_detection": payload.get("emotion_detection", True),
+            "max_workers": payload.get("max_workers", 4),
         }
 
         logger.info(f"ML 서버 요청 전송 시작 - Job ID: {job_id}, URL: {ml_api_url}")
@@ -432,18 +388,66 @@ async def _send_request_to_ml_server(job_id: str, payload: Dict[str, Any]) -> No
                     logger.info(
                         f"ML 서버 요청 접수 성공 - Job ID: {job_id}, Response: {result}"
                     )
+                    # estimated_time 처리 (선택적)
+                    if "estimated_time" in result:
+                        logger.info(f"ML 서버 예상 처리 시간: {result['estimated_time']}초")
                 else:
-                    error_text = await response.text()
-                    raise Exception(f"ML 서버 요청 실패 {response.status}: {error_text}")
+                    # 에러 응답 상세 처리
+                    error_detail = {}
+                    try:
+                        error_detail = await response.json()
+                    except Exception:
+                        error_detail = {"message": await response.text()}
+
+                    error_message = error_detail.get("message", f"ML Server returned {response.status}")
+                    error_code = error_detail.get("error", {}).get("code", "ML_SERVER_ERROR")
+
+                    # 데이터베이스 업데이트 (가능한 경우)
+                    if db_session:
+                        await _update_job_status_error(db_session, job_id, error_message, error_code)
+
+                    raise Exception(f"ML 서버 요청 실패 {response.status}: {error_message}")
 
     except asyncio.TimeoutError:
+        error_message = f"ML 서버 처리 타임아웃 ({timeout}초)"
         logger.error(f"ML 서버 요청 타임아웃 - Job ID: {job_id}")
-        raise Exception(f"ML 서버 요청 타임아웃 ({timeout}초)")
+
+        # 데이터베이스 업데이트 (가능한 경우)
+        if db_session:
+            await _update_job_status_error(db_session, job_id, error_message, "TIMEOUT_ERROR")
+
+        raise Exception(error_message)
 
     except aiohttp.ClientConnectorError as e:
+        error_message = f"ML 서버 연결 실패: {str(e)}"
         logger.error(f"ML 서버 연결 실패 - Job ID: {job_id}, Error: {str(e)}")
-        raise Exception(f"ML 서버 연결 실패: {str(e)}")
+
+        # 데이터베이스 업데이트 (가능한 경우)
+        if db_session:
+            await _update_job_status_error(db_session, job_id, error_message, "CONNECTION_ERROR")
+
+        raise Exception(error_message)
 
     except Exception as e:
         logger.error(f"ML 서버 요청 실패 - Job ID: {job_id}, Error: {str(e)}")
+
+        # 데이터베이스 업데이트 (가능한 경우)
+        if db_session:
+            await _update_job_status_error(db_session, job_id, str(e), "UNKNOWN_ERROR")
+
         raise
+
+
+# 에러 상태 업데이트 헬퍼 함수
+async def _update_job_status_error(db_session, job_id: str, error_message: str, error_code: str):
+    """Job 상태를 실패로 업데이트"""
+    try:
+        if db_session:
+            job_service = JobService(db_session)
+            job_service.update_job_status(
+                job_id=job_id,
+                status="failed",
+                error_message=f"{error_code}: {error_message}"
+            )
+    except Exception as e:
+        logger.error(f"Job 상태 업데이트 실패: {str(e)}")

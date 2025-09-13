@@ -37,6 +37,13 @@ class Settings(BaseSettings):
     MODEL_SERVER_URL: str = Field(
         ..., description="ML server URL", alias="MODEL_SERVER_URL"
     )
+    ML_API_TIMEOUT: int = Field(
+        default=300, description="ML API timeout in seconds (default: 5 minutes)"
+    )
+    FASTAPI_BASE_URL: str = Field(
+        default="http://localhost:8000",
+        description="Backend server URL for ML callbacks",
+    )
 
     # Database Settings
     database_url: str = Field(
