@@ -2,20 +2,38 @@
 GPU 서버 렌더링 API 엔드포인트
 """
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, Request
 from pydantic import BaseModel
 from typing import Dict, Any, Optional, List
 from sqlalchemy.orm import Session
 import logging
-import aiohttp
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 from app.db.database import get_db
 from app.services.render_service import RenderService
 from app.core.config import settings
+from app.api.v1.auth import get_current_user
+from app.schemas.user import UserResponse
+from app.utils.validators import validate_render_request
+from app.utils.render_utils import extract_video_name, calculate_estimated_time
+from app.utils.error_responses import RenderError
+from app.tasks.gpu_tasks import trigger_gpu_server, cancel_gpu_job
 
 # 로거 설정
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/render", tags=["render"])
+
+# Rate Limiter 설정
+limiter = Limiter(key_func=get_remote_address)
+
+# Rate limit 에러 핸들러
+@router.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    """Rate limit 초과 시 커스텀 에러 메시지"""
+    retry_after = getattr(exc, 'retry_after', 60)
+    return RenderError.rate_limit_exceeded(exc.detail, retry_after)
 
 
 # Pydantic 모델들
@@ -39,7 +57,6 @@ class CreateRenderResponse(BaseModel):
     """렌더링 작업 생성 응답"""
     jobId: str
     estimatedTime: int
-    pollUrl: str
     createdAt: str
 
 
@@ -101,35 +118,59 @@ GPU_RENDER_TIMEOUT = getattr(settings, 'GPU_RENDER_TIMEOUT', 1800)  # 30분
 RENDER_CALLBACK_URL = getattr(settings, 'RENDER_CALLBACK_URL', settings.FASTAPI_BASE_URL)
 
 
+
+
 @router.post("/create", response_model=CreateRenderResponse)
+@limiter.limit("20/minute")  # 분당 20회 제한
 async def create_render_job(
+    request_obj: Request,
     request: CreateRenderRequest,
     background_tasks: BackgroundTasks,
+    current_user: UserResponse = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
     GPU 서버에서 비디오 렌더링 작업을 생성합니다.
     """
     try:
-        # 입력 검증
-        if not request.videoUrl:
-            raise HTTPException(status_code=400, detail="videoUrl is required")
+        # 옵션 변환
+        options_dict = request.options.model_dump() if request.options else {}
 
-        if not request.scenario:
-            raise HTTPException(status_code=400, detail="scenario is required")
+        # 상세 입력 검증
+        validation_result = validate_render_request(
+            request.videoUrl,
+            request.scenario,
+            options_dict
+        )
+
+        if not validation_result["valid"]:
+            raise RenderError.validation_error(
+                validation_result["reason"],
+                validation_result["details"]
+            )
 
         # 렌더링 서비스로 작업 생성
         render_service = RenderService(db)
 
-        # 옵션 변환
-        options_dict = request.options.dict() if request.options else {}
+        # 사용자 할당량 체크
+        quota_check = render_service.check_user_quota(current_user.id)
+        if not quota_check["allowed"]:
+            quota_type = quota_check.get("quota_type", "unknown")
+            raise RenderError.quota_exceeded(quota_check["reason"], quota_type)
+
+        # 비디오 이름 추출
+        video_name = extract_video_name(request.videoUrl)
+
+        # 예상 렌더링 시간 계산
+        estimated_time = calculate_estimated_time(request.scenario)
 
         render_job = render_service.create_render_job(
             video_url=request.videoUrl,
             scenario=request.scenario,
             options=options_dict,
-            user_id=None,  # TODO: 인증 구현 후 user_id 추가
-            video_name=None,  # TODO: 비디오 이름 추출
+            user_id=current_user.id,
+            video_name=video_name,
+            estimated_time=estimated_time,
         )
 
         logger.info(f"렌더링 작업 생성 - Job ID: {render_job.job_id}")
@@ -144,12 +185,11 @@ async def create_render_job(
         )
 
         # 백그라운드에서 GPU 서버에 요청 전송
-        background_tasks.add_task(trigger_gpu_server, str(render_job.job_id), gpu_request, db)
+        background_tasks.add_task(trigger_gpu_server, str(render_job.job_id), gpu_request.model_dump(), db)
 
         return CreateRenderResponse(
             jobId=str(render_job.job_id),
             estimatedTime=render_job.estimated_time,
-            pollUrl=f"/api/render/{render_job.job_id}/status",
             createdAt=render_job.created_at.isoformat(),
         )
 
@@ -157,11 +197,15 @@ async def create_render_job(
         raise
     except Exception as e:
         logger.error(f"렌더링 작업 생성 실패: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to create render job: {str(e)}")
+        raise RenderError.job_creation_failed(str(e))
 
 
 @router.get("/{job_id}/status", response_model=RenderStatusResponse)
-async def get_render_status(job_id: str, db: Session = Depends(get_db)):
+async def get_render_status(
+    job_id: str,
+    current_user: UserResponse = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     """
     렌더링 작업의 현재 상태를 확인합니다.
     """
@@ -169,7 +213,7 @@ async def get_render_status(job_id: str, db: Session = Depends(get_db)):
     job = render_service.get_render_job(job_id)
 
     if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
+        raise RenderError.job_not_found(job_id)
 
     return RenderStatusResponse(
         jobId=str(job.job_id),
@@ -187,6 +231,7 @@ async def get_render_status(job_id: str, db: Session = Depends(get_db)):
 async def cancel_render_job(
     job_id: str,
     background_tasks: BackgroundTasks,
+    current_user: UserResponse = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -197,7 +242,7 @@ async def cancel_render_job(
     # 작업 존재 확인
     job = render_service.get_render_job(job_id)
     if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
+        raise RenderError.job_not_found(job_id)
 
     # 작업 취소
     success = render_service.cancel_render_job(job_id)
@@ -220,6 +265,7 @@ async def cancel_render_job(
 @router.get("/history", response_model=List[RenderHistoryItem])
 async def get_render_history(
     limit: int = 10,
+    current_user: UserResponse = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -227,8 +273,8 @@ async def get_render_history(
     """
     render_service = RenderService(db)
 
-    # TODO: 인증 구현 후 user_id로 필터링
-    history = render_service.get_render_job_history(user_id=None, limit=limit)
+    # 현재 사용자의 이력만 조회
+    history = render_service.get_render_job_history(user_id=current_user.id, limit=limit)
 
     return [
         RenderHistoryItem(
@@ -266,7 +312,7 @@ async def receive_gpu_callback(
         job = render_service.get_render_job(job_id)
         if not job:
             logger.warning(f"존재하지 않는 Job ID: {job_id}")
-            raise HTTPException(status_code=404, detail="Job not found")
+            raise RenderError.job_not_found(job_id)
 
         # 상태 업데이트
         success = render_service.update_render_job_status(
@@ -282,7 +328,13 @@ async def receive_gpu_callback(
         )
 
         if not success:
-            raise HTTPException(status_code=500, detail="Failed to update job status")
+            raise RenderError.job_update_failed(job_id, "update status")
+
+        # 완료/실패 시 사용량 통계 업데이트
+        if callback.status in ["completed", "failed"]:
+            updated_job = render_service.get_render_job(job_id)
+            if updated_job:
+                render_service.update_usage_stats(updated_job)
 
         return {"status": "received"}
 
@@ -290,104 +342,7 @@ async def receive_gpu_callback(
         raise
     except Exception as e:
         logger.error(f"GPU 콜백 처리 중 오류: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Callback processing failed: {str(e)}")
+        raise RenderError.callback_processing_failed(str(e))
 
 
-# 백그라운드 태스크 함수들
-async def trigger_gpu_server(job_id: str, request: GPURenderRequest, db_session=None):
-    """GPU 서버에 렌더링 요청을 전송하는 백그라운드 태스크"""
-    try:
-        logger.info(f"GPU 서버에 요청 전송 - Job ID: {job_id}")
 
-        # GPU 서버로 요청 전송
-        await _send_request_to_gpu_server(job_id, request.dict(), db_session)
-
-        logger.info(f"GPU 서버에 요청 전송 완료 - Job ID: {job_id}")
-
-    except Exception as e:
-        logger.error(f"GPU 서버 요청 실패 - Job ID: {job_id}, Error: {str(e)}")
-
-
-async def _send_request_to_gpu_server(job_id: str, payload: Dict[str, Any], db_session=None) -> None:
-    """GPU 서버에 렌더링 요청 전송"""
-    try:
-        gpu_api_url = GPU_RENDER_SERVER_URL
-        timeout = float(GPU_RENDER_TIMEOUT)
-
-        logger.info(f"GPU 서버 요청 전송 시작 - Job ID: {job_id}, URL: {gpu_api_url}")
-        logger.debug(f"요청 데이터: {payload}")
-
-        timeout_config = aiohttp.ClientTimeout(total=timeout)
-
-        async with aiohttp.ClientSession(timeout=timeout_config) as session:
-            async with session.post(
-                f"{gpu_api_url}/api/render/process",
-                json=payload,
-                headers={
-                    "Content-Type": "application/json",
-                    "User-Agent": "ECG-Backend/1.0",
-                },
-            ) as response:
-                if response.status == 200:
-                    result = await response.json()
-                    logger.info(f"GPU 서버 요청 접수 성공 - Job ID: {job_id}, Response: {result}")
-                else:
-                    error_text = await response.text()
-                    error_message = f"GPU Server returned {response.status}: {error_text}"
-
-                    # 데이터베이스 업데이트
-                    if db_session:
-                        await _update_job_error(db_session, job_id, error_message, "GPU_SERVER_ERROR")
-
-                    raise Exception(error_message)
-
-    except aiohttp.ClientConnectorError as e:
-        error_message = f"GPU 서버 연결 실패: {str(e)}"
-        logger.error(f"GPU 서버 연결 실패 - Job ID: {job_id}, Error: {str(e)}")
-
-        if db_session:
-            await _update_job_error(db_session, job_id, error_message, "CONNECTION_ERROR")
-
-        raise Exception(error_message)
-
-    except Exception as e:
-        logger.error(f"GPU 서버 요청 실패 - Job ID: {job_id}, Error: {str(e)}")
-
-        if db_session:
-            await _update_job_error(db_session, job_id, str(e), "UNKNOWN_ERROR")
-
-        raise
-
-
-async def _update_job_error(db_session, job_id: str, error_message: str, error_code: str):
-    """작업 에러 상태 업데이트"""
-    try:
-        if db_session:
-            render_service = RenderService(db_session)
-            render_service.update_render_job_status(
-                job_id=job_id,
-                status="failed",
-                error_message=error_message,
-                error_code=error_code,
-            )
-    except Exception as e:
-        logger.error(f"작업 상태 업데이트 실패: {str(e)}")
-
-
-async def cancel_gpu_job(job_id: str):
-    """GPU 서버에 작업 취소 요청"""
-    try:
-        gpu_api_url = GPU_RENDER_SERVER_URL
-
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                f"{gpu_api_url}/api/render/{job_id}/cancel",
-                headers={"User-Agent": "ECG-Backend/1.0"},
-            ) as response:
-                if response.status == 200:
-                    logger.info(f"GPU 서버 작업 취소 성공 - Job ID: {job_id}")
-                else:
-                    logger.warning(f"GPU 서버 작업 취소 실패 - Job ID: {job_id}, Status: {response.status}")
-
-    except Exception as e:
-        logger.error(f"GPU 서버 작업 취소 요청 실패 - Job ID: {job_id}, Error: {str(e)}")

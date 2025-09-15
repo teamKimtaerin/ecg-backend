@@ -5,10 +5,13 @@ GPU 렌더링 작업 관리 서비스
 from typing import Dict, Any, Optional, List
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy import func, and_
 from app.models.render_job import RenderJob, RenderStatus
+from app.models.user import User
+from app.models.render_usage_stats import RenderUsageStats
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, date
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +22,76 @@ class RenderService:
     def __init__(self, db: Session):
         self.db = db
 
+    def check_user_quota(self, user_id: str) -> Dict[str, Any]:
+        """사용자 렌더링 할당량 확인"""
+        try:
+            # 사용자 정보 조회
+            user = self.db.query(User).filter(User.id == user_id).first()
+            if not user:
+                return {"allowed": False, "reason": "User not found"}
+
+            today = date.today()
+            current_month_start = date(today.year, today.month, 1)
+
+            # 오늘 렌더링 횟수
+            daily_count = self.db.query(RenderJob).filter(
+                and_(
+                    RenderJob.user_id == user_id,
+                    func.date(RenderJob.created_at) == today,
+                    RenderJob.status != RenderStatus.CANCELLED
+                )
+            ).count()
+
+            # 이번 달 렌더링 횟수
+            monthly_count = self.db.query(RenderJob).filter(
+                and_(
+                    RenderJob.user_id == user_id,
+                    func.date(RenderJob.created_at) >= current_month_start,
+                    RenderJob.status != RenderStatus.CANCELLED
+                )
+            ).count()
+
+            # 현재 진행 중인 작업 수
+            concurrent_count = self.db.query(RenderJob).filter(
+                and_(
+                    RenderJob.user_id == user_id,
+                    RenderJob.status.in_([RenderStatus.QUEUED, RenderStatus.PROCESSING])
+                )
+            ).count()
+
+            # 할당량 체크
+            if daily_count >= user.render_quota_daily:
+                return {
+                    "allowed": False,
+                    "reason": f"Daily quota exceeded ({daily_count}/{user.render_quota_daily})",
+                    "quota_type": "daily"
+                }
+
+            if monthly_count >= user.render_quota_monthly:
+                return {
+                    "allowed": False,
+                    "reason": f"Monthly quota exceeded ({monthly_count}/{user.render_quota_monthly})",
+                    "quota_type": "monthly"
+                }
+
+            if concurrent_count >= user.concurrent_render_limit:
+                return {
+                    "allowed": False,
+                    "reason": f"Too many concurrent jobs ({concurrent_count}/{user.concurrent_render_limit})",
+                    "quota_type": "concurrent"
+                }
+
+            return {
+                "allowed": True,
+                "daily_usage": {"used": daily_count, "limit": user.render_quota_daily},
+                "monthly_usage": {"used": monthly_count, "limit": user.render_quota_monthly},
+                "concurrent_usage": {"used": concurrent_count, "limit": user.concurrent_render_limit}
+            }
+
+        except SQLAlchemyError as e:
+            logger.error(f"할당량 확인 실패: {str(e)}")
+            return {"allowed": False, "reason": "Database error"}
+
     def create_render_job(
         self,
         video_url: str,
@@ -26,14 +99,15 @@ class RenderService:
         options: Optional[Dict[str, Any]] = None,
         user_id: Optional[str] = None,
         video_name: Optional[str] = None,
+        estimated_time: Optional[int] = None,
     ) -> RenderJob:
         """새 렌더링 작업 생성"""
         try:
             job_id = str(uuid.uuid4())
 
-            # 예상 시간 계산 (비디오 길이 기반)
-            # TODO: 실제 비디오 길이에 따라 계산
-            estimated_time = 30  # 기본 30초
+            # 예상 시간 사용 (기본값 30초)
+            if estimated_time is None:
+                estimated_time = 30
 
             render_job = RenderJob(
                 job_id=job_id,
@@ -236,3 +310,87 @@ class RenderService:
             self.db.rollback()
             logger.error(f"렌더링 작업 삭제 실패: {str(e)}")
             return False
+
+    def update_usage_stats(self, job: RenderJob) -> bool:
+        """렌더링 완료 시 사용량 통계 업데이트"""
+        try:
+            if not job.user_id or job.status not in [RenderStatus.COMPLETED, RenderStatus.FAILED]:
+                return True  # 통계 업데이트 필요 없음
+
+            today = date.today()
+
+            # 기존 통계 레코드 조회 또는 생성
+            stats = self.db.query(RenderUsageStats).filter(
+                and_(
+                    RenderUsageStats.user_id == job.user_id,
+                    RenderUsageStats.date == today
+                )
+            ).first()
+
+            if not stats:
+                stats = RenderUsageStats(
+                    user_id=job.user_id,
+                    date=today
+                )
+                self.db.add(stats)
+
+            # 카운트 업데이트
+            stats.render_count += 1
+
+            if job.status == RenderStatus.COMPLETED:
+                stats.render_success_count += 1
+
+                # 성공한 경우만 시간/크기 통계 업데이트
+                if job.duration:
+                    stats.total_duration += job.duration
+
+                if job.file_size:
+                    stats.total_file_size += job.file_size
+
+                # 처리 시간 계산 (started_at과 completed_at 기반)
+                if job.started_at and job.completed_at:
+                    processing_time = (job.completed_at - job.started_at).total_seconds()
+                    stats.total_processing_time += processing_time
+
+                # Cue 개수 카운트
+                if job.scenario and 'cues' in job.scenario:
+                    cues_count = len(job.scenario['cues'])
+                    stats.total_cues_processed += cues_count
+
+            elif job.status == RenderStatus.FAILED:
+                stats.render_failed_count += 1
+
+            # 평균값 계산
+            if stats.render_success_count > 0:
+                stats.avg_processing_time = stats.total_processing_time / stats.render_success_count
+                stats.avg_file_size = stats.total_file_size / stats.render_success_count
+                stats.avg_cues_per_job = stats.total_cues_processed / stats.render_success_count
+
+            self.db.commit()
+            logger.info(f"사용량 통계 업데이트됨 - User: {job.user_id}, Date: {today}")
+            return True
+
+        except SQLAlchemyError as e:
+            self.db.rollback()
+            logger.error(f"사용량 통계 업데이트 실패: {str(e)}")
+            return False
+
+    def get_user_usage_stats(self, user_id: str, days: int = 30) -> List[Dict[str, Any]]:
+        """사용자 사용량 통계 조회"""
+        try:
+            end_date = date.today()
+            start_date = date(end_date.year, end_date.month, end_date.day - days)
+
+            stats = self.db.query(RenderUsageStats).filter(
+                and_(
+                    RenderUsageStats.user_id == user_id,
+                    RenderUsageStats.date >= start_date,
+                    RenderUsageStats.date <= end_date
+                )
+            ).order_by(RenderUsageStats.date.desc()).all()
+
+            return [stat.to_dict() for stat in stats]
+
+        except SQLAlchemyError as e:
+            logger.error(f"사용량 통계 조회 실패: {str(e)}")
+            return []
