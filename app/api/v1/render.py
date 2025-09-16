@@ -30,10 +30,10 @@ limiter = Limiter(key_func=get_remote_address)
 
 # Rate limit 에러는 slowapi middleware에서 자동 처리됨
 
-
 # Pydantic 모델들
 class RenderOptions(BaseModel):
     """렌더링 옵션"""
+
     width: int = 1920
     height: int = 1080
     fps: int = 30
@@ -43,6 +43,7 @@ class RenderOptions(BaseModel):
 
 class CreateRenderRequest(BaseModel):
     """렌더링 작업 생성 요청"""
+
     videoUrl: str
     scenario: Dict[str, Any]  # MotionText scenario
     options: Optional[RenderOptions] = None
@@ -50,6 +51,7 @@ class CreateRenderRequest(BaseModel):
 
 class CreateRenderResponse(BaseModel):
     """렌더링 작업 생성 응답"""
+
     jobId: str
     estimatedTime: int
     createdAt: str
@@ -57,6 +59,7 @@ class CreateRenderResponse(BaseModel):
 
 class RenderStatusResponse(BaseModel):
     """렌더링 작업 상태 응답"""
+
     jobId: str
     status: str
     progress: int
@@ -69,12 +72,14 @@ class RenderStatusResponse(BaseModel):
 
 class CancelRenderResponse(BaseModel):
     """렌더링 작업 취소 응답"""
+
     success: bool
     message: str
 
 
 class RenderHistoryItem(BaseModel):
     """렌더링 이력 항목"""
+
     jobId: str
     videoName: str
     status: str
@@ -87,6 +92,7 @@ class RenderHistoryItem(BaseModel):
 
 class GPURenderRequest(BaseModel):
     """GPU 서버로 보내는 렌더링 요청"""
+
     job_id: str
     video_url: str
     scenario: Dict[str, Any]
@@ -96,6 +102,7 @@ class GPURenderRequest(BaseModel):
 
 class GPURenderCallback(BaseModel):
     """GPU 서버로부터 받는 콜백"""
+
     job_id: str
     status: str
     progress: Optional[int] = None
@@ -108,11 +115,13 @@ class GPURenderCallback(BaseModel):
 
 
 # 환경변수에서 GPU 서버 설정 읽기
-GPU_RENDER_SERVER_URL = getattr(settings, 'GPU_RENDER_SERVER_URL', 'http://gpu-server:8090')
-GPU_RENDER_TIMEOUT = getattr(settings, 'GPU_RENDER_TIMEOUT', 1800)  # 30분
-RENDER_CALLBACK_URL = getattr(settings, 'RENDER_CALLBACK_URL', settings.FASTAPI_BASE_URL)
-
-
+GPU_RENDER_SERVER_URL = getattr(
+    settings, "GPU_RENDER_SERVER_URL", "http://gpu-server:8090"
+)
+GPU_RENDER_TIMEOUT = getattr(settings, "GPU_RENDER_TIMEOUT", 1800)  # 30분
+RENDER_CALLBACK_URL = getattr(
+    settings, "RENDER_CALLBACK_URL", settings.FASTAPI_BASE_URL
+)
 
 
 @router.post("/create", response_model=CreateRenderResponse)
@@ -133,15 +142,12 @@ async def create_render_job(
 
         # 상세 입력 검증
         validation_result = validate_render_request(
-            request.videoUrl,
-            request.scenario,
-            options_dict
+            request.videoUrl, request.scenario, options_dict
         )
 
         if not validation_result["valid"]:
             raise RenderError.validation_error(
-                validation_result["reason"],
-                validation_result["details"]
+                validation_result["reason"], validation_result["details"]
             )
 
         # 렌더링 서비스로 작업 생성
@@ -180,7 +186,9 @@ async def create_render_job(
         )
 
         # 백그라운드에서 GPU 서버에 요청 전송
-        background_tasks.add_task(trigger_gpu_server, str(render_job.job_id), gpu_request.model_dump(), db)
+        background_tasks.add_task(
+            trigger_gpu_server, str(render_job.job_id), gpu_request.model_dump(), db
+        )
 
         return CreateRenderResponse(
             jobId=str(render_job.job_id),
@@ -199,7 +207,7 @@ async def create_render_job(
 async def get_render_status(
     job_id: str,
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     렌더링 작업의 현재 상태를 확인합니다.
@@ -227,7 +235,7 @@ async def cancel_render_job(
     job_id: str,
     background_tasks: BackgroundTasks,
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     진행 중인 렌더링 작업을 취소합니다.
@@ -246,14 +254,10 @@ async def cancel_render_job(
         # GPU 서버에도 취소 요청 전송 (백그라운드)
         background_tasks.add_task(cancel_gpu_job, job_id)
 
-        return CancelRenderResponse(
-            success=True,
-            message="Job cancelled successfully"
-        )
+        return CancelRenderResponse(success=True, message="Job cancelled successfully")
     else:
         return CancelRenderResponse(
-            success=False,
-            message="Failed to cancel job or job is already completed"
+            success=False, message="Failed to cancel job or job is already completed"
         )
 
 
@@ -261,7 +265,7 @@ async def cancel_render_job(
 async def get_render_history(
     limit: int = 10,
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     렌더링 작업 이력을 조회합니다.
@@ -269,7 +273,9 @@ async def get_render_history(
     render_service = RenderService(db)
 
     # 현재 사용자의 이력만 조회
-    history = render_service.get_render_job_history(user_id=current_user.id, limit=limit)
+    history = render_service.get_render_job_history(
+        user_id=current_user.id, limit=limit
+    )
 
     return [
         RenderHistoryItem(
@@ -288,8 +294,7 @@ async def get_render_history(
 
 @router.post("/callback")
 async def receive_gpu_callback(
-    callback: GPURenderCallback,
-    db: Session = Depends(get_db)
+    callback: GPURenderCallback, db: Session = Depends(get_db)
 ):
     """
     GPU 서버로부터 렌더링 진행상황 콜백을 받습니다.
@@ -338,6 +343,3 @@ async def receive_gpu_callback(
     except Exception as e:
         logger.error(f"GPU 콜백 처리 중 오류: {str(e)}")
         raise RenderError.callback_processing_failed(str(e))
-
-
-

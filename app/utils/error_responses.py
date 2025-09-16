@@ -10,12 +10,14 @@ class RenderError:
     """렌더링 관련 에러 응답 생성기"""
 
     @staticmethod
-    def validation_error(message: str, details: Optional[Dict[str, Any]] = None) -> HTTPException:
+    def validation_error(
+        message: str, details: Optional[Dict[str, Any]] = None
+    ) -> HTTPException:
         """입력 검증 에러 (400)"""
         error_detail = {
             "error": "VALIDATION_ERROR",
             "message": message,
-            "code": "RENDER_VALIDATION_FAILED"
+            "code": "RENDER_VALIDATION_FAILED",
         }
         if details:
             error_detail["details"] = details
@@ -30,7 +32,7 @@ class RenderError:
             "error": "QUOTA_EXCEEDED",
             "message": message,
             "code": f"RENDER_QUOTA_{quota_type.upper()}_EXCEEDED",
-            "quota_type": quota_type
+            "quota_type": quota_type,
         }
 
         return HTTPException(status_code=status_code, detail=error_detail)
@@ -42,7 +44,7 @@ class RenderError:
             "error": "JOB_NOT_FOUND",
             "message": f"Render job with ID '{job_id}' not found",
             "code": "RENDER_JOB_NOT_FOUND",
-            "job_id": job_id
+            "job_id": job_id,
         }
 
         return HTTPException(status_code=404, detail=error_detail)
@@ -53,7 +55,7 @@ class RenderError:
         error_detail = {
             "error": "JOB_CREATION_FAILED",
             "message": f"Failed to create render job: {reason}",
-            "code": "RENDER_JOB_CREATION_FAILED"
+            "code": "RENDER_JOB_CREATION_FAILED",
         }
 
         return HTTPException(status_code=500, detail=error_detail)
@@ -65,7 +67,7 @@ class RenderError:
             "error": "JOB_UPDATE_FAILED",
             "message": f"Failed to {operation} job '{job_id}'",
             "code": f"RENDER_JOB_{operation.upper()}_FAILED",
-            "job_id": job_id
+            "job_id": job_id,
         }
 
         return HTTPException(status_code=500, detail=error_detail)
@@ -76,7 +78,7 @@ class RenderError:
         error_detail = {
             "error": "CALLBACK_PROCESSING_FAILED",
             "message": f"GPU callback processing failed: {reason}",
-            "code": "RENDER_CALLBACK_PROCESSING_FAILED"
+            "code": "RENDER_CALLBACK_PROCESSING_FAILED",
         }
 
         return HTTPException(status_code=500, detail=error_detail)
@@ -88,7 +90,7 @@ class RenderError:
             "error": "RATE_LIMIT_EXCEEDED",
             "message": f"Too many requests. Limit: {limit}",
             "code": "RENDER_RATE_LIMIT_EXCEEDED",
-            "retry_after": retry_after
+            "retry_after": retry_after,
         }
 
         return HTTPException(status_code=429, detail=error_detail)
@@ -99,7 +101,7 @@ class RenderError:
         error_detail = {
             "error": "INTERNAL_SERVER_ERROR",
             "message": f"An internal error occurred: {reason}",
-            "code": "RENDER_INTERNAL_ERROR"
+            "code": "RENDER_INTERNAL_ERROR",
         }
         if context:
             error_detail["context"] = context

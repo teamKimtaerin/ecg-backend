@@ -1,18 +1,48 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
+from pydantic import BaseModel
+from typing import Optional
+from sqlalchemy.orm import Session
+from app.db.database import get_db
 
 router = APIRouter(prefix="/api/upload-video", tags=["video"])
 
 
-@router.post("/generate-url")
-async def generate_presigned_url(request: dict):
-    """
-    실제 S3 사전 서명된 URL 발급
-    """
-    filename = request.get("filename")
-    filetype = request.get("filetype")
+class PresignedUrlRequest(BaseModel):
+    """Presigned URL 생성 요청 모델"""
 
-    if not filename or not filetype:
-        raise HTTPException(status_code=400, detail="Invalid filename or filetype")
+    filename: str
+    content_type: Optional[str] = None  # Frontend uses content_type
+    filetype: Optional[str] = None  # Backend legacy support
+
+    def get_content_type(self) -> str:
+        """Get content type from either field"""
+        return self.content_type or self.filetype or "application/octet-stream"
+
+
+class PresignedUrlResponse(BaseModel):
+    """Presigned URL 생성 응답 모델"""
+
+    presigned_url: str  # Frontend expects presigned_url
+    file_key: str  # Frontend expects file_key (snake_case)
+    expires_in: int  # Frontend expects expires_in
+    # Legacy support
+    url: Optional[str] = None
+    fileKey: Optional[str] = None
+
+
+@router.post("/generate-url", response_model=PresignedUrlResponse)
+async def generate_presigned_url(
+    request: PresignedUrlRequest, db: Session = Depends(get_db)
+):
+    """
+    실제 S3 사전 서명된 URL 발급 (임시로 인증 없음)
+    Frontend와 Backend 필드명 호환성 지원
+    """
+    filename = request.filename
+    filetype = request.get_content_type()
+
+    if not filename:
+        raise HTTPException(status_code=400, detail="Filename is required")
 
     # ========== MOCK 코드 (주석 처리) ==========
     # fake_file_key = f"videos/demo/{int(time.time())}_{filename}"
@@ -46,7 +76,7 @@ async def generate_presigned_url(request: dict):
             region_name=aws_region,
         )
 
-        # 파일 키 생성
+        # 파일 키 생성 (임시로 anonymous 폴더 사용)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         unique_id = str(uuid.uuid4())[:8]
         file_key = f"videos/anonymous/{timestamp}_{unique_id}_{filename}"
@@ -62,8 +92,17 @@ async def generate_presigned_url(request: dict):
         print(f"[S3 TEST] File key: {file_key}")
         print(f"[S3 TEST] Bucket: {s3_bucket_name}")
         print(f"[S3 TEST] URL: {presigned_url}")
+        print(f"[S3 TEST] Expires in: {presigned_expire} seconds")
 
-        return {"url": presigned_url, "fileKey": file_key}
+        # Return both new and legacy formats for compatibility
+        return PresignedUrlResponse(
+            presigned_url=presigned_url,
+            file_key=file_key,
+            expires_in=presigned_expire,
+            # Legacy support
+            url=presigned_url,
+            fileKey=file_key,
+        )
 
     except Exception as e:
         print(f"[S3 ERROR] Failed to generate presigned URL: {str(e)}")

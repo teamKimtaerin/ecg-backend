@@ -26,7 +26,7 @@ def validate_video_url(url: str) -> Dict[str, Any]:
         parsed = urlparse(url)
 
         # HTTPS 필수
-        if parsed.scheme != 'https':
+        if parsed.scheme != "https":
             return {"valid": False, "reason": "Only HTTPS URLs are allowed"}
 
         # 호스트명 필수
@@ -35,12 +35,12 @@ def validate_video_url(url: str) -> Dict[str, Any]:
 
         # 허용된 도메인 체크 (화이트리스트)
         allowed_domains = [
-            's3.amazonaws.com',
-            's3.ap-northeast-2.amazonaws.com',
-            's3.us-east-1.amazonaws.com',
-            'storage.googleapis.com',
-            'storage.cloud.google.com',
-            'd1234567890.cloudfront.net',  # CloudFront 패턴 예시
+            "s3.amazonaws.com",
+            "s3.ap-northeast-2.amazonaws.com",
+            "s3.us-east-1.amazonaws.com",
+            "storage.googleapis.com",
+            "storage.cloud.google.com",
+            "d1234567890.cloudfront.net",  # CloudFront 패턴 예시
         ]
 
         # 도메인 매칭 (서브도메인 포함)
@@ -53,17 +53,17 @@ def validate_video_url(url: str) -> Dict[str, Any]:
         if not domain_allowed:
             return {
                 "valid": False,
-                "reason": f"Domain '{parsed.netloc}' is not allowed. Allowed domains: {', '.join(allowed_domains)}"
+                "reason": f"Domain '{parsed.netloc}' is not allowed. Allowed domains: {', '.join(allowed_domains)}",
             }
 
         # 파일 확장자 체크
         path = parsed.path.lower()
-        allowed_extensions = ['.mp4', '.mov', '.avi', '.mkv', '.webm']
+        allowed_extensions = [".mp4", ".mov", ".avi", ".mkv", ".webm"]
 
         if not any(path.endswith(ext) for ext in allowed_extensions):
             return {
                 "valid": False,
-                "reason": f"File extension not allowed. Allowed extensions: {', '.join(allowed_extensions)}"
+                "reason": f"File extension not allowed. Allowed extensions: {', '.join(allowed_extensions)}",
             }
 
         return {"valid": True, "reason": "Valid video URL"}
@@ -85,18 +85,18 @@ def validate_scenario(scenario: Dict[str, Any]) -> Dict[str, Any]:
     """
     try:
         # 필수 필드 체크
-        required_fields = ['version', 'cues']
+        required_fields = ["version", "cues"]
         for field in required_fields:
             if field not in scenario:
                 return {"valid": False, "reason": f"Missing required field: {field}"}
 
         # 버전 체크
-        version = scenario.get('version')
-        if not isinstance(version, str) or not re.match(r'^\d+\.\d+$', version):
+        version = scenario.get("version")
+        if not isinstance(version, str) or not re.match(r"^\d+\.\d+$", version):
             return {"valid": False, "reason": "Invalid version format. Expected: 'X.Y'"}
 
         # Cues 체크
-        cues = scenario.get('cues', [])
+        cues = scenario.get("cues", [])
         if not isinstance(cues, list):
             return {"valid": False, "reason": "cues must be an array"}
 
@@ -105,7 +105,7 @@ def validate_scenario(scenario: Dict[str, Any]) -> Dict[str, Any]:
         if len(cues) > max_cues:
             return {
                 "valid": False,
-                "reason": f"Too many cues. Maximum allowed: {max_cues}, provided: {len(cues)}"
+                "reason": f"Too many cues. Maximum allowed: {max_cues}, provided: {len(cues)}",
             }
 
         # 각 Cue 검증
@@ -114,37 +114,51 @@ def validate_scenario(scenario: Dict[str, Any]) -> Dict[str, Any]:
                 return {"valid": False, "reason": f"Cue {i} must be an object"}
 
             # 필수 필드
-            if 'id' not in cue:
+            if "id" not in cue:
                 return {"valid": False, "reason": f"Cue {i} missing required field: id"}
 
             # hintTime 검증
-            if 'hintTime' in cue:
-                hint_time = cue['hintTime']
+            if "hintTime" in cue:
+                hint_time = cue["hintTime"]
                 if not isinstance(hint_time, dict):
-                    return {"valid": False, "reason": f"Cue {i} hintTime must be an object"}
+                    return {
+                        "valid": False,
+                        "reason": f"Cue {i} hintTime must be an object",
+                    }
 
-                if 'start' in hint_time and 'end' in hint_time:
-                    start = hint_time['start']
-                    end = hint_time['end']
+                if "start" in hint_time and "end" in hint_time:
+                    start = hint_time["start"]
+                    end = hint_time["end"]
 
-                    if not isinstance(start, (int, float)) or not isinstance(end, (int, float)):
-                        return {"valid": False, "reason": f"Cue {i} hintTime start/end must be numbers"}
+                    if not isinstance(start, (int, float)) or not isinstance(
+                        end, (int, float)
+                    ):
+                        return {
+                            "valid": False,
+                            "reason": f"Cue {i} hintTime start/end must be numbers",
+                        }
 
                     if start < 0 or end < 0:
-                        return {"valid": False, "reason": f"Cue {i} hintTime cannot be negative"}
+                        return {
+                            "valid": False,
+                            "reason": f"Cue {i} hintTime cannot be negative",
+                        }
 
                     if start >= end:
-                        return {"valid": False, "reason": f"Cue {i} hintTime start must be less than end"}
+                        return {
+                            "valid": False,
+                            "reason": f"Cue {i} hintTime start must be less than end",
+                        }
 
         # JSON 직렬화 크기 체크
         try:
             scenario_json = json.dumps(scenario)
             max_size = 5 * 1024 * 1024  # 5MB
 
-            if len(scenario_json.encode('utf-8')) > max_size:
+            if len(scenario_json.encode("utf-8")) > max_size:
                 return {
                     "valid": False,
-                    "reason": f"Scenario too large. Maximum size: {max_size // (1024*1024)}MB"
+                    "reason": f"Scenario too large. Maximum size: {max_size // (1024*1024)}MB",
                 }
         except Exception:
             return {"valid": False, "reason": "Scenario cannot be serialized to JSON"}
@@ -168,8 +182,8 @@ def validate_render_options(options: Dict[str, Any]) -> Dict[str, Any]:
     """
     try:
         # 해상도 제한
-        width = options.get('width', 1920)
-        height = options.get('height', 1080)
+        width = options.get("width", 1920)
+        height = options.get("height", 1080)
 
         # 최대 해상도 제한 (4K)
         max_width = 3840
@@ -178,7 +192,7 @@ def validate_render_options(options: Dict[str, Any]) -> Dict[str, Any]:
         if width > max_width or height > max_height:
             return {
                 "valid": False,
-                "reason": f"Resolution too high. Maximum: {max_width}x{max_height}, provided: {width}x{height}"
+                "reason": f"Resolution too high. Maximum: {max_width}x{max_height}, provided: {width}x{height}",
             }
 
         # 최소 해상도
@@ -188,33 +202,27 @@ def validate_render_options(options: Dict[str, Any]) -> Dict[str, Any]:
         if width < min_width or height < min_height:
             return {
                 "valid": False,
-                "reason": f"Resolution too low. Minimum: {min_width}x{min_height}, provided: {width}x{height}"
+                "reason": f"Resolution too low. Minimum: {min_width}x{min_height}, provided: {width}x{height}",
             }
 
         # FPS 제한
-        fps = options.get('fps', 30)
+        fps = options.get("fps", 30)
         if not isinstance(fps, int) or fps < 1 or fps > 60:
-            return {
-                "valid": False,
-                "reason": "FPS must be between 1 and 60"
-            }
+            return {"valid": False, "reason": "FPS must be between 1 and 60"}
 
         # 품질 제한
-        quality = options.get('quality', 90)
+        quality = options.get("quality", 90)
         if not isinstance(quality, int) or quality < 10 or quality > 100:
-            return {
-                "valid": False,
-                "reason": "Quality must be between 10 and 100"
-            }
+            return {"valid": False, "reason": "Quality must be between 10 and 100"}
 
         # 포맷 체크
-        format_type = options.get('format', 'mp4')
-        allowed_formats = ['mp4', 'mov', 'webm']
+        format_type = options.get("format", "mp4")
+        allowed_formats = ["mp4", "mov", "webm"]
 
         if format_type not in allowed_formats:
             return {
                 "valid": False,
-                "reason": f"Format '{format_type}' not allowed. Allowed formats: {', '.join(allowed_formats)}"
+                "reason": f"Format '{format_type}' not allowed. Allowed formats: {', '.join(allowed_formats)}",
             }
 
         return {"valid": True, "reason": "Valid render options"}
@@ -224,7 +232,9 @@ def validate_render_options(options: Dict[str, Any]) -> Dict[str, Any]:
         return {"valid": False, "reason": f"Options validation error: {str(e)}"}
 
 
-def validate_render_request(video_url: str, scenario: Dict[str, Any], options: Dict[str, Any] = None) -> Dict[str, Any]:
+def validate_render_request(
+    video_url: str, scenario: Dict[str, Any], options: Dict[str, Any] = None
+) -> Dict[str, Any]:
     """
     전체 렌더링 요청 검증
 
@@ -255,14 +265,6 @@ def validate_render_request(video_url: str, scenario: Dict[str, Any], options: D
             errors.append(f"Options: {options_result['reason']}")
 
     if errors:
-        return {
-            "valid": False,
-            "reason": "Validation failed",
-            "details": errors
-        }
+        return {"valid": False, "reason": "Validation failed", "details": errors}
 
-    return {
-        "valid": True,
-        "reason": "All validations passed",
-        "details": []
-    }
+    return {"valid": True, "reason": "All validations passed", "details": []}
