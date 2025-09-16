@@ -96,6 +96,17 @@ class RenderError:
         return HTTPException(status_code=429, detail=error_detail)
 
     @staticmethod
+    def status_query_failed(reason: str) -> HTTPException:
+        """상태 조회 실패 (500)"""
+        error_detail = {
+            "error": "STATUS_QUERY_FAILED",
+            "message": f"Failed to query render job status: {reason}",
+            "code": "RENDER_STATUS_QUERY_FAILED"
+        }
+
+        return HTTPException(status_code=500, detail=error_detail)
+
+    @staticmethod
     def internal_error(reason: str, context: Optional[str] = None) -> HTTPException:
         """내부 서버 에러 (500)"""
         error_detail = {

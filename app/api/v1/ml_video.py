@@ -5,12 +5,17 @@ EC2 ML 서버로부터 분석 결과를 받고, 비디오 처리 요청을 관�
 """
 
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, Request
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from pydantic import BaseModel, ValidationError
 from typing import Dict, Any, Optional
 from enum import Enum
 import asyncio
 import logging
 import aiohttp
+import hashlib
+import hmac
+import os
 from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.services.job_service import JobService
@@ -22,6 +27,25 @@ from app.schemas.user import UserResponse
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/upload-video", tags=["ml-video"])
+limiter = Limiter(key_func=get_remote_address)
+
+
+def verify_hmac_signature(request_body: bytes, signature: str, secret_key: str) -> bool:
+    """
+    HMAC 서명을 검증하는 함수
+    """
+    try:
+        expected_signature = hmac.new(
+            secret_key.encode('utf-8'),
+            request_body,
+            hashlib.sha256
+        ).hexdigest()
+
+        # 시간 공격을 방지하기 위한 안전한 비교
+        return hmac.compare_digest(f"sha256={expected_signature}", signature)
+    except Exception as e:
+        logger.error(f"HMAC verification failed: {str(e)}")
+        return False
 
 
 # Pydantic 모델들
@@ -105,7 +129,9 @@ ML_API_TIMEOUT = settings.ML_API_TIMEOUT
 
 
 @router.post("/request-process", response_model=ClientProcessResponse)
+@limiter.limit("5/minute")
 async def request_process(
+    request_obj: Request,
     request: ClientProcessRequest,
     background_tasks: BackgroundTasks,
     current_user: UserResponse = Depends(get_current_user),
@@ -190,14 +216,25 @@ async def receive_ml_results(
     """
 
     try:
+        # 원본 요청 바디 읽기 (HMAC 검증용)
+        request_body = await request.body()
+
+        # HMAC 서명 검증 (선택적 - 환경변수로 활성화)
+        signature_header = request.headers.get("X-Signature-256", "")
+        webhook_secret = getattr(settings, 'webhook_secret_key', None) or settings.secret_key
+
+        if signature_header and webhook_secret:
+            if not verify_hmac_signature(request_body, signature_header, webhook_secret):
+                logger.warning(f"HMAC signature verification failed from IP: {request.client.host}")
+                raise HTTPException(status_code=401, detail="Invalid signature")
+        elif signature_header:
+            logger.warning("HMAC signature provided but no webhook secret configured")
+
         # 요청 정보 로깅
         client_ip = request.client.host
         content_type = request.headers.get("content-type", "unknown")
         user_agent = request.headers.get("user-agent", "unknown")
-
-        # 원본 요청 본문 읽기 (디버깅용)
-        body = await request.body()
-        body_text = body.decode("utf-8") if body else "empty"
+        body_text = request_body.decode('utf-8') if request_body else "empty"
 
         logger.info(
             f"ML 콜백 수신 - Client: {client_ip}, Content-Type: {content_type}, "
@@ -288,63 +325,65 @@ async def receive_ml_results(
             logger.warning(f"존재하지 않는 Job ID: {job_id}, Client: {client_ip}")
             raise HTTPException(status_code=404, detail="해당 작업을 찾을 수 없습니다")
 
-        # 이미 완료된 작업에 대한 추가 요청 체크
-        if job.status == "completed" and ml_result.status in [
-            "completed",
-            "processing",
-        ]:
-            logger.warning(
-                f"이미 완료된 작업에 대한 추가 콜백 무시 - Job ID: {job_id}, "
-                f"Current Status: {job.status}, New Status: {ml_result.status}, Client: {client_ip}"
+        # 멱등성 보장: 이미 완료된 작업에 대한 요청은 조용히 성공 처리
+        if job.status == "completed" and ml_result.status in ["completed", "processing"]:
+            logger.info(
+                f"멱등성 처리 - 이미 완료된 작업에 대한 콜백: Job ID: {job_id}, "
+                f"Current Status: {job.status}, New Status: {ml_result.status}"
             )
-            return MLResultResponse(status="ignored", reason="job_already_completed")
+            return MLResultResponse(status="already_completed")
 
         if job.status == "failed" and ml_result.status != "failed":
-            logger.warning(
-                f"실패한 작업에 대한 상태 변경 시도 무시 - Job ID: {job_id}, "
-                f"Current Status: {job.status}, New Status: {ml_result.status}, Client: {client_ip}"
-            )
-            return MLResultResponse(status="ignored", reason="job_already_failed")
-
-        # 상태에 따라 처리
-        if ml_result.status == "processing":
-            # 진행 상황 업데이트 (message는 로그로만 기록)
-            success = job_service.update_job_status(
-                job_id=job_id, status="processing", progress=ml_result.progress or 0
-            )
             logger.info(
-                f"진행 상황 업데이트 - Job ID: {job_id}, Progress: {ml_result.progress}%, Message: {ml_result.message}"
+                f"멱등성 처리 - 이미 실패한 작업에 대한 콜백: Job ID: {job_id}, "
+                f"Current Status: {job.status}, New Status: {ml_result.status}"
             )
+            return MLResultResponse(status="already_failed")
 
-        elif ml_result.status in ["completed", "failed"]:
-            # 최종 결과 처리
-            final_status = "completed" if ml_result.status == "completed" else "failed"
-            success = job_service.update_job_status(
-                job_id=job_id,
-                status=final_status,
-                progress=100 if final_status == "completed" else job.progress,
-                result=ml_result.result,
-                error_message=ml_result.error_message,
-            )
+        # 트랜잭션으로 상태 업데이트 처리
+        try:
+            if ml_result.status == "processing":
+                # 진행 상황 업데이트 (message는 로그로만 기록)
+                success = job_service.update_job_status(
+                    job_id=job_id, status="processing", progress=ml_result.progress or 0
+                )
+                logger.info(
+                    f"진행 상황 업데이트 - Job ID: {job_id}, Progress: {ml_result.progress}%, Message: {ml_result.message}"
+                )
 
-            if final_status == "completed":
-                logger.info(f"작업 완료 - Job ID: {job_id}")
-                # 백그라운드에서 결과 후처리
-                if ml_result.result:
-                    background_tasks.add_task(
-                        process_completed_results, job_id, ml_result.result
+            elif ml_result.status in ["completed", "failed"]:
+                # 최종 결과 처리
+                final_status = "completed" if ml_result.status == "completed" else "failed"
+                success = job_service.update_job_status(
+                    job_id=job_id,
+                    status=final_status,
+                    progress=100 if final_status == "completed" else job.progress,
+                    result=ml_result.result,
+                    error_message=ml_result.error_message,
+                )
+
+                if final_status == "completed":
+                    logger.info(f"작업 완료 - Job ID: {job_id}")
+                    # 백그라운드에서 결과 후처리
+                    if ml_result.result:
+                        background_tasks.add_task(
+                            process_completed_results, job_id, ml_result.result
+                        )
+                else:
+                    logger.error(
+                        f"작업 실패 - Job ID: {job_id}, Error: {ml_result.error_message}"
                     )
             else:
-                logger.error(
-                    f"작업 실패 - Job ID: {job_id}, Error: {ml_result.error_message}"
-                )
-        else:
-            # 알 수 없는 상태
-            logger.warning(f"알 수 없는 상태 - Job ID: {job_id}, Status: {ml_result.status}")
-            success = True
+                # 알 수 없는 상태
+                logger.warning(f"알 수 없는 상태 - Job ID: {job_id}, Status: {ml_result.status}")
+                success = True
 
-        if not success:
-            raise HTTPException(status_code=500, detail="작업 상태 업데이트 실패")
+            if not success:
+                raise HTTPException(status_code=500, detail="작업 상태 업데이트 실패")
+
+        except Exception as e:
+            logger.error(f"상태 업데이트 중 오류: {str(e)}")
+            raise HTTPException(status_code=500, detail="상태 업데이트 실패")
 
         return MLResultResponse(status="received")
 
@@ -375,6 +414,17 @@ async def receive_ml_results(
 @router.get("/status/{job_id}")
 async def get_job_status(job_id: str, db: Session = Depends(get_db)):
     """작업 상태 조회 (클라이언트 폴링용)"""
+
+    # Job ID 검증
+    if not job_id or job_id == "undefined" or job_id == "null":
+        raise HTTPException(status_code=400, detail="올바른 Job ID가 필요합니다")
+
+    # UUID 형식 검증
+    try:
+        import uuid
+        uuid.UUID(job_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Job ID는 유효한 UUID 형식이어야 합니다")
 
     job_service = JobService(db)
     job = job_service.get_job(job_id)
