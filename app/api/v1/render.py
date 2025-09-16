@@ -28,12 +28,7 @@ router = APIRouter(prefix="/api/render", tags=["render"])
 # Rate Limiter 설정
 limiter = Limiter(key_func=get_remote_address)
 
-# Rate limit 에러 핸들러
-@router.exception_handler(RateLimitExceeded)
-async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
-    """Rate limit 초과 시 커스텀 에러 메시지"""
-    retry_after = getattr(exc, 'retry_after', 60)
-    return RenderError.rate_limit_exceeded(exc.detail, retry_after)
+# Rate limit 에러는 slowapi middleware에서 자동 처리됨
 
 
 # Pydantic 모델들
