@@ -14,5 +14,5 @@ __all__ = [
     "RenderMonthlyStats",
     "Project",
     "Clip",
-    "Word"
+    "Word",
 ]
