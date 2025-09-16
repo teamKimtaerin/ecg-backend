@@ -25,13 +25,21 @@ def validate_video_url(url: str) -> Dict[str, Any]:
         # 기본 URL 형식 검증
         parsed = urlparse(url)
 
-        # HTTPS 필수
-        if parsed.scheme != "https":
-            return {"valid": False, "reason": "Only HTTPS URLs are allowed"}
-
         # 호스트명 필수
         if not parsed.netloc:
             return {"valid": False, "reason": "Invalid URL format"}
+
+        # 로컬호스트인지 확인
+        is_localhost = parsed.netloc.startswith(
+            "localhost"
+        ) or parsed.netloc.startswith("127.0.0.1")
+
+        # 프로토콜 검증 (로컬호스트는 HTTP 허용, 그 외는 HTTPS 필수)
+        if not is_localhost and parsed.scheme != "https":
+            return {
+                "valid": False,
+                "reason": "Only HTTPS URLs are allowed (except for localhost)",
+            }
 
         # 허용된 도메인 체크 (화이트리스트)
         allowed_domains = [
@@ -41,14 +49,21 @@ def validate_video_url(url: str) -> Dict[str, Any]:
             "storage.googleapis.com",
             "storage.cloud.google.com",
             "d1234567890.cloudfront.net",  # CloudFront 패턴 예시
+            "localhost",  # 로컬 테스트용
+            "127.0.0.1",  # 로컬 테스트용
         ]
 
         # 도메인 매칭 (서브도메인 포함)
         domain_allowed = False
-        for allowed_domain in allowed_domains:
-            if parsed.netloc.endswith(allowed_domain):
-                domain_allowed = True
-                break
+
+        # 로컬호스트인 경우 포트 번호 무시하고 검증
+        if is_localhost:
+            domain_allowed = True
+        else:
+            for allowed_domain in allowed_domains:
+                if parsed.netloc.endswith(allowed_domain):
+                    domain_allowed = True
+                    break
 
         if not domain_allowed:
             return {

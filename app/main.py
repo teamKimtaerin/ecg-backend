@@ -1,12 +1,20 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 from app.api.v1.routers import api_router
 from app.core.config import settings
 import os
 import logging
 
 app = FastAPI(title="ECG Backend API", version="1.0.0")
+
+# Rate limiting 설정
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # 로깅 설정
 logging.basicConfig(level=logging.INFO)
@@ -32,6 +40,42 @@ async def startup_event():
         logger.error(f"Database initialization failed: {str(e)}")
         # 프로덕션에서는 DB 초기화 실패 시에도 서버 시작을 허용
         # (이미 초기화된 DB일 수 있음)
+
+    # 좀비 Job 정리 로직
+    logger.info("Starting zombie job cleanup...")
+    try:
+        from app.db.database import get_db
+        from app.models.job import Job, JobStatus
+        from datetime import datetime, timedelta
+
+        db = next(get_db())
+
+        # 30분 이상 처리 중인 작업 찾기
+        cutoff_time = datetime.utcnow() - timedelta(minutes=30)
+        zombie_jobs = (
+            db.query(Job)
+            .filter(Job.status == JobStatus.PROCESSING, Job.updated_at < cutoff_time)
+            .all()
+        )
+
+        zombie_count = len(zombie_jobs)
+        if zombie_count > 0:
+            # 좀비 작업들을 실패로 변경
+            for job in zombie_jobs:
+                job.status = JobStatus.FAILED
+                job.error_message = "Processing timeout - server restart detected"
+
+            db.commit()
+            logger.info(f"Cleaned up {zombie_count} zombie jobs")
+        else:
+            logger.info("No zombie jobs found")
+
+    except Exception as e:
+        logger.error(f"Zombie job cleanup failed: {str(e)}")
+        # 좀비 정리 실패는 서버 시작을 막지 않음
+    finally:
+        if "db" in locals():
+            db.close()
 
 
 # 세션 미들웨어 추가 (OAuth에 필요)
@@ -80,11 +124,6 @@ async def root():
 @app.get("/health")
 async def health_check():
     return {"status": "healthy", "service": "ECG Backend"}
-
-
-@app.get("/api/test")
-async def test_endpoint():
-    return {"data": "ECG Backend Test", "demo_mode": True}
 
 
 if __name__ == "__main__":

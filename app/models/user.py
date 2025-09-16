@@ -30,9 +30,9 @@ class User(Base):
     is_verified = Column(Boolean, default=False)
 
     # 렌더링 할당량 설정
-    render_quota_daily = Column(Integer, default=10)  # 일일 렌더링 제한
-    render_quota_monthly = Column(Integer, default=100)  # 월간 렌더링 제한
-    concurrent_render_limit = Column(Integer, default=2)  # 동시 렌더링 제한
+    # render_quota_daily = Column(Integer, default=10)  # 일일 렌더링 제한
+    # render_quota_monthly = Column(Integer, default=100)  # 월간 렌더링 제한
+    # concurrent_render_limit = Column(Integer, default=2)  # 동시 렌더링 제한
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
