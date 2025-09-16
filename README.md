@@ -375,3 +375,4 @@ git commit -m "Fix authentication bug"
 - 다시 git add 후 커밋 필요
 ```
 
+# Trigger deployment Fri Sep 12 14:37:23 KST 2025

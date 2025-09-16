@@ -37,8 +37,29 @@ class Settings(BaseSettings):
     MODEL_SERVER_URL: str = Field(
         ..., description="ML server URL", alias="MODEL_SERVER_URL"
     )
+
     ml_api_server_url: str = Field(
         default="http://host.docker.internal:8080", description="ML API server URL"
+
+    ML_API_TIMEOUT: int = Field(
+        default=300, description="ML API timeout in seconds (default: 5 minutes)"
+    )
+    FASTAPI_BASE_URL: str = Field(
+        default="http://localhost:8000",
+        description="Backend server URL for ML callbacks",
+    )
+
+    # GPU Render Server Settings
+    GPU_RENDER_SERVER_URL: str = Field(
+        default="http://gpu-server:8090",
+        description="GPU render server URL",
+    )
+    GPU_RENDER_TIMEOUT: int = Field(
+        default=1800, description="GPU render timeout in seconds (default: 30 minutes)"
+    )
+    RENDER_CALLBACK_URL: str = Field(
+        default="http://localhost:8000",
+        description="Callback URL for GPU render results",
     )
 
     # Database Settings
