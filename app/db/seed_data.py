@@ -25,7 +25,7 @@ def create_seed_data():
                 "password": "password123",
             },
             {"username": "admin", "email": "admin@example.com", "password": "admin123"},
-            {"username": "demo", "email": "demo@example.com", "password": "demo123"},
+            {"username": "demo", "email": "demo@example.com", "password": "demo1234"},
         ]
 
         created_count = 0

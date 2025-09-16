@@ -84,7 +84,7 @@ class VideoProcessResponse(BaseModel):
 
 
 class JobStatusResponse(BaseModel):
-    """작업 상태 응답"""
+    """작업 상태 응답 (기존 엔드포인트용)"""
 
     job_id: str
     status: str
@@ -479,8 +479,9 @@ async def _send_request_to_ml_server(
 
     try:
         # ML_API.md 명세에 따른 ML 서버 URL
-        ml_api_url = MODEL_SERVER_URL
-        timeout = float(ML_API_TIMEOUT)  # 대용량 비디오 처리를 위해 5분으로 증가
+
+        ml_api_url = os.getenv("MODEL_SERVER_URL", "http://host.docker.internal:8080")
+        timeout = float(os.getenv("ML_API_TIMEOUT", "30"))  # 요청만 전송하므로 짧은 타임아웃
 
         # ML_API.md 명세에 따른 요청 페이로드 (확장된 파라미터 포함)
         api_payload = {
