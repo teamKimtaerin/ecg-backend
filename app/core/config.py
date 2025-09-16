@@ -37,6 +37,10 @@ class Settings(BaseSettings):
     MODEL_SERVER_URL: str = Field(
         ..., description="ML server URL", alias="MODEL_SERVER_URL"
     )
+
+    ml_api_server_url: str = Field(
+        default="http://host.docker.internal:8080", description="ML API server URL"
+
     ML_API_TIMEOUT: int = Field(
         default=300, description="ML API timeout in seconds (default: 5 minutes)"
     )
