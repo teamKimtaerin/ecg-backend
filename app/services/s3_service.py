@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 from botocore.exceptions import ClientError
 import os
-from typing import Tuple, Optional
+from typing import Tuple
 
 
 class S3Service:
@@ -29,21 +29,18 @@ class S3Service:
             region_name=self.aws_region,
         )
 
-    def generate_file_key(self, filename: str, user_id: Optional[str] = None) -> str:
+    def generate_file_key(self, filename: str, user_id: str) -> str:
         """Generate unique file key for S3 storage."""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         unique_id = str(uuid.uuid4())[:8]
 
         # Create file key: videos/user_id/timestamp_uniqueid_filename.ext
-        if user_id:
-            file_key = f"videos/{user_id}/{timestamp}_{unique_id}_{filename}"
-        else:
-            file_key = f"videos/anonymous/{timestamp}_{unique_id}_{filename}"
+        file_key = f"videos/{user_id}/{timestamp}_{unique_id}_{filename}"
 
         return file_key
 
     def generate_presigned_url(
-        self, filename: str, filetype: str, user_id: Optional[str] = None
+        self, filename: str, filetype: str, user_id: str
     ) -> Tuple[str, str]:
         """Generate presigned URL for S3 upload."""
         try:

@@ -230,6 +230,7 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
     """
     Google OAuth 콜백 처리
     - Google에서 돌아온 인증 정보로 사용자 로그인/회원가입 처리
+    - 성공 시 프론트엔드로 토큰과 함께 리디렉션
     """
     try:
         google = oauth.create_client("google")
@@ -249,9 +250,15 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
             # 이메일로 기존 사용자 확인 (로컬 계정이 있는 경우)
             existing_user = auth_service.get_user_by_email(db, email)
             if existing_user and existing_user.auth_provider == AuthProvider.LOCAL:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"이미 '{email}' 계정으로 가입된 사용자가 있습니다. 일반 로그인을 사용해주세요.",
+                # 에러 상황에서도 프론트엔드로 리디렉션
+                frontend_url = (
+                    settings.cors_origins[0]
+                    if settings.cors_origins
+                    else "http://localhost:3000"
+                )
+                error_message = f"이미 '{email}' 계정으로 가입된 사용자가 있습니다. 일반 로그인을 사용해주세요."
+                return RedirectResponse(
+                    url=f"{frontend_url}/auth/callback?error={error_message}"
                 )
 
             # 새 OAuth 사용자 생성
@@ -268,7 +275,7 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
             data={"user_id": user.id, "email": user.email}
         )
 
-        # 성공 시 프론트엔드로 리디렉션
+        # 성공 시 프론트엔드 콜백 페이지로 리디렉션 (토큰 포함)
         frontend_url = (
             settings.cors_origins[0]
             if settings.cors_origins
@@ -288,17 +295,31 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
             max_age=30 * 24 * 60 * 60,  # 30일
         )
 
-        return response
+        return RedirectResponse(
+            url=f"{frontend_url}/auth/callback?token={access_token}"
+        )
 
     except OAuthError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Google OAuth 인증 실패: {str(e)}",
+        # OAuth 에러 시에도 프론트엔드로 리디렉션
+        frontend_url = (
+            settings.cors_origins[0]
+            if settings.cors_origins
+            else "http://localhost:3000"
+        )
+        error_message = f"Google OAuth 인증 실패: {str(e)}"
+        return RedirectResponse(
+            url=f"{frontend_url}/auth/callback?error={error_message}"
         )
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Google 로그인 처리 중 오류가 발생했습니다: {str(e)}",
+        # 일반 에러 시에도 프론트엔드로 리디렉션
+        frontend_url = (
+            settings.cors_origins[0]
+            if settings.cors_origins
+            else "http://localhost:3000"
+        )
+        error_message = f"Google 로그인 처리 중 오류가 발생했습니다: {str(e)}"
+        return RedirectResponse(
+            url=f"{frontend_url}/auth/callback?error={error_message}"
         )
 
 
