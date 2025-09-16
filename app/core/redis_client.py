@@ -116,7 +116,7 @@ class RedisClient:
         """Redis 연결 확인"""
         try:
             return self.client.ping()
-        except:
+        except Exception:
             return False
 
 
