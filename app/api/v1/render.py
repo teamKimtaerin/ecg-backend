@@ -9,7 +9,6 @@ from sqlalchemy.orm import Session
 import logging
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from slowapi.errors import RateLimitExceeded
 from app.db.database import get_db
 from app.services.render_service import RenderService
 from app.core.config import settings
@@ -29,6 +28,7 @@ router = APIRouter(prefix="/api/render", tags=["render"])
 limiter = Limiter(key_func=get_remote_address)
 
 # Rate limit 에러는 slowapi middleware에서 자동 처리됨
+
 
 # Pydantic 모델들
 class RenderOptions(BaseModel):
