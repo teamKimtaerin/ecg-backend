@@ -25,6 +25,7 @@ async def startup_event():
     logger.info("Starting database initialization...")
     try:
         from app.db.init_db import init_database
+
         init_database()
         logger.info("Database initialization completed successfully")
     except Exception as e:
@@ -42,7 +43,7 @@ default_origins = [
     "http://127.0.0.1:3000",
     # Production domains
     "https://ecg-frontend.vercel.app",
-    "https://ecg-project.com"
+    "https://ecg-project.com",
 ]
 
 # 환경변수가 있으면 그것을 사용, 없으면 기본값 사용
@@ -64,7 +65,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["*"]  # 모든 헤더를 프론트엔드에 노출
+    expose_headers=["*"],  # 모든 헤더를 프론트엔드에 노출
 )
 
 # API 라우터 등록

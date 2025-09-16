@@ -197,7 +197,7 @@ async def receive_ml_results(
 
         # 원본 요청 본문 읽기 (디버깅용)
         body = await request.body()
-        body_text = body.decode('utf-8') if body else "empty"
+        body_text = body.decode("utf-8") if body else "empty"
 
         logger.info(
             f"ML 콜백 수신 - Client: {client_ip}, Content-Type: {content_type}, "
@@ -207,17 +207,20 @@ async def receive_ml_results(
         # JSON 파싱 및 검증
         try:
             import json
+
             body_json = json.loads(body_text) if body_text != "empty" else {}
             ml_result = MLResultRequest(**body_json)
         except json.JSONDecodeError as e:
-            logger.error(f"JSON 파싱 실패 - Client: {client_ip}, Error: {str(e)}, Body: {body_text}")
+            logger.error(
+                f"JSON 파싱 실패 - Client: {client_ip}, Error: {str(e)}, Body: {body_text}"
+            )
             raise HTTPException(
                 status_code=422,
                 detail={
                     "error": "Invalid JSON format",
                     "message": str(e),
-                    "received_body": body_text[:500]
-                }
+                    "received_body": body_text[:500],
+                },
             )
         except ValidationError as e:
             logger.error(
@@ -235,22 +238,22 @@ async def receive_ml_results(
                     "bug_report_analysis": {
                         "issue": "Request/Response 스키마 혼동이 아님",
                         "reality": "MLResultRequest는 ML 서버 콜백용으로 정확함",
-                        "solution": "프론트엔드는 GET /status/{job_id} 사용 필요"
+                        "solution": "프론트엔드는 GET /status/{job_id} 사용 필요",
                     },
                     "fix_required": {
                         "1_change_method": "POST → GET",
                         "2_change_endpoint": "/api/upload-video/result → /api/upload-video/status/{job_id}",
                         "3_remove_body": "요청 본문 제거 (GET 요청)",
-                        "4_status_field": "status 필드는 ML 서버가 보내는 것이 맞음"
+                        "4_status_field": "status 필드는 ML 서버가 보내는 것이 맞음",
                     },
                     "example_correct_usage": {
                         "url": "http://localhost:8000/api/upload-video/status/your-job-id",
                         "method": "GET",
-                        "headers": {"Content-Type": "application/json"}
+                        "headers": {"Content-Type": "application/json"},
                     },
                     "documentation": "/docs/FRONTEND_CRITICAL_FIX.md",
                     "validation_errors": e.errors(),
-                    "received_body": body_text[:500]
+                    "received_body": body_text[:500],
                 }
             else:
                 error_detail = {
@@ -263,8 +266,8 @@ async def receive_ml_results(
                         "progress": "integer (optional)",
                         "message": "string (optional)",
                         "result": "object (optional)",
-                        "error_message": "string (optional)"
-                    }
+                        "error_message": "string (optional)",
+                    },
                 }
 
             raise HTTPException(status_code=422, detail=error_detail)
@@ -286,7 +289,10 @@ async def receive_ml_results(
             raise HTTPException(status_code=404, detail="해당 작업을 찾을 수 없습니다")
 
         # 이미 완료된 작업에 대한 추가 요청 체크
-        if job.status == "completed" and ml_result.status in ["completed", "processing"]:
+        if job.status == "completed" and ml_result.status in [
+            "completed",
+            "processing",
+        ]:
             logger.warning(
                 f"이미 완료된 작업에 대한 추가 콜백 무시 - Job ID: {job_id}, "
                 f"Current Status: {job.status}, New Status: {ml_result.status}, Client: {client_ip}"
@@ -357,9 +363,9 @@ async def receive_ml_results(
                     "progress": "integer (optional)",
                     "message": "string (optional)",
                     "result": "object (optional)",
-                    "error_message": "string (optional)"
-                }
-            }
+                    "error_message": "string (optional)",
+                },
+            },
         )
     except Exception as e:
         logger.error(f"ML 결과 처리 중 오류: {str(e)}")
@@ -466,7 +472,9 @@ async def handle_processing_error(job_id: str, error_message: str):
 
 
 # ML 서버에 요청 전송 함수 (콜백 기반)
-async def _send_request_to_ml_server(job_id: str, payload: Dict[str, Any], db_session=None) -> None:
+async def _send_request_to_ml_server(
+    job_id: str, payload: Dict[str, Any], db_session=None
+) -> None:
     """EC2 ML 서버에 처리 요청만 전송 (결과는 콜백으로 받음)"""
 
     try:
@@ -516,12 +524,18 @@ async def _send_request_to_ml_server(job_id: str, payload: Dict[str, Any], db_se
                     except Exception:
                         error_detail = {"message": await response.text()}
 
-                    error_message = error_detail.get("message", f"ML Server returned {response.status}")
-                    error_code = error_detail.get("error", {}).get("code", "ML_SERVER_ERROR")
+                    error_message = error_detail.get(
+                        "message", f"ML Server returned {response.status}"
+                    )
+                    error_code = error_detail.get("error", {}).get(
+                        "code", "ML_SERVER_ERROR"
+                    )
 
                     # 데이터베이스 업데이트 (가능한 경우)
                     if db_session:
-                        await _update_job_status_error(db_session, job_id, error_message, error_code)
+                        await _update_job_status_error(
+                            db_session, job_id, error_message, error_code
+                        )
 
                     raise Exception(f"ML 서버 요청 실패 {response.status}: {error_message}")
 
@@ -531,7 +545,9 @@ async def _send_request_to_ml_server(job_id: str, payload: Dict[str, Any], db_se
 
         # 데이터베이스 업데이트 (가능한 경우)
         if db_session:
-            await _update_job_status_error(db_session, job_id, error_message, "TIMEOUT_ERROR")
+            await _update_job_status_error(
+                db_session, job_id, error_message, "TIMEOUT_ERROR"
+            )
 
         raise Exception(error_message)
 
@@ -541,7 +557,9 @@ async def _send_request_to_ml_server(job_id: str, payload: Dict[str, Any], db_se
 
         # 데이터베이스 업데이트 (가능한 경우)
         if db_session:
-            await _update_job_status_error(db_session, job_id, error_message, "CONNECTION_ERROR")
+            await _update_job_status_error(
+                db_session, job_id, error_message, "CONNECTION_ERROR"
+            )
 
         raise Exception(error_message)
 
@@ -556,7 +574,9 @@ async def _send_request_to_ml_server(job_id: str, payload: Dict[str, Any], db_se
 
 
 # 에러 상태 업데이트 헬퍼 함수
-async def _update_job_status_error(db_session, job_id: str, error_message: str, error_code: str):
+async def _update_job_status_error(
+    db_session, job_id: str, error_message: str, error_code: str
+):
     """Job 상태를 실패로 업데이트"""
     try:
         if db_session:
@@ -564,7 +584,7 @@ async def _update_job_status_error(db_session, job_id: str, error_message: str, 
             job_service.update_job_status(
                 job_id=job_id,
                 status="failed",
-                error_message=f"{error_code}: {error_message}"
+                error_message=f"{error_code}: {error_message}",
             )
     except Exception as e:
         logger.error(f"Job 상태 업데이트 실패: {str(e)}")

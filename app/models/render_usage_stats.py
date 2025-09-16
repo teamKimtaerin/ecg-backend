@@ -40,9 +40,7 @@ class RenderUsageStats(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # 사용자별 일별 고유 제약
-    __table_args__ = (
-        UniqueConstraint('user_id', 'date', name='uq_user_date'),
-    )
+    __table_args__ = (UniqueConstraint("user_id", "date", name="uq_user_date"),)
 
     def to_dict(self):
         """딕셔너리로 변환"""
@@ -52,7 +50,8 @@ class RenderUsageStats(Base):
             "render_count": self.render_count,
             "success_rate": (
                 self.render_success_count / self.render_count
-                if self.render_count > 0 else 0
+                if self.render_count > 0
+                else 0
             ),
             "avg_processing_time": self.avg_processing_time,
             "total_duration": self.total_duration,
@@ -91,5 +90,5 @@ class RenderMonthlyStats(Base):
 
     # 사용자별 월별 고유 제약
     __table_args__ = (
-        UniqueConstraint('user_id', 'year', 'month', name='uq_user_year_month'),
+        UniqueConstraint("user_id", "year", "month", name="uq_user_year_month"),
     )

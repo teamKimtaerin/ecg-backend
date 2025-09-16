@@ -10,17 +10,17 @@ def extract_video_name(video_url: str) -> str:
     """비디오 URL에서 파일명 추출"""
     try:
         parsed_url = urlparse(video_url)
-        filename = parsed_url.path.split('/')[-1]
+        filename = parsed_url.path.split("/")[-1]
 
         # 확장자 제거
-        if '.' in filename:
-            name = filename.rsplit('.', 1)[0]
+        if "." in filename:
+            name = filename.rsplit(".", 1)[0]
         else:
             name = filename
 
         # URL 디코딩 및 특수문자 정리
-        name = re.sub(r'[^\w\s-]', '', name)
-        name = re.sub(r'\s+', ' ', name).strip()
+        name = re.sub(r"[^\w\s-]", "", name)
+        name = re.sub(r"\s+", " ", name).strip()
 
         return name if name else "Untitled"
     except Exception:
@@ -32,10 +32,10 @@ def calculate_estimated_time(scenario: dict) -> int:
     try:
         base_time = 30  # 기본 30초
 
-        if 'cues' not in scenario:
+        if "cues" not in scenario:
             return base_time
 
-        cues = scenario['cues']
+        cues = scenario["cues"]
         if not isinstance(cues, list):
             return base_time
 
@@ -47,11 +47,11 @@ def calculate_estimated_time(scenario: dict) -> int:
         for cue in cues:
             if isinstance(cue, dict):
                 # 텍스트 길이에 따른 복잡도
-                if 'text' in cue and len(str(cue['text'])) > 50:
+                if "text" in cue and len(str(cue["text"])) > 50:
                     complexity_multiplier += 0.2
 
                 # 특수 이펙트 확인
-                if 'effects' in cue or 'animations' in cue:
+                if "effects" in cue or "animations" in cue:
                     complexity_multiplier += 0.3
 
         total_time = int((base_time + additional_time) * complexity_multiplier)

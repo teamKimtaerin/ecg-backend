@@ -61,7 +61,7 @@ class Settings(BaseSettings):
     # Frontend Editor Settings
     FRONTEND_EDITOR_URL: str = Field(
         default="http://localhost:3000",
-        description="Frontend editor URL for Playwright rendering"
+        description="Frontend editor URL for Playwright rendering",
     )
 
     # Phase 2 Streaming Pipeline Settings

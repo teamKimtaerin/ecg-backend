@@ -34,58 +34,78 @@ class RenderService:
             current_month_start = date(today.year, today.month, 1)
 
             # 오늘 렌더링 횟수
-            daily_count = self.db.query(RenderJob).filter(
-                and_(
-                    RenderJob.user_id == user_id,
-                    func.date(RenderJob.created_at) == today,
-                    RenderJob.status != RenderStatus.CANCELLED
+            daily_count = (
+                self.db.query(RenderJob)
+                .filter(
+                    and_(
+                        RenderJob.user_id == user_id,
+                        func.date(RenderJob.created_at) == today,
+                        RenderJob.status != RenderStatus.CANCELLED,
+                    )
                 )
-            ).count()
+                .count()
+            )
 
             # 이번 달 렌더링 횟수
-            monthly_count = self.db.query(RenderJob).filter(
-                and_(
-                    RenderJob.user_id == user_id,
-                    func.date(RenderJob.created_at) >= current_month_start,
-                    RenderJob.status != RenderStatus.CANCELLED
+            monthly_count = (
+                self.db.query(RenderJob)
+                .filter(
+                    and_(
+                        RenderJob.user_id == user_id,
+                        func.date(RenderJob.created_at) >= current_month_start,
+                        RenderJob.status != RenderStatus.CANCELLED,
+                    )
                 )
-            ).count()
+                .count()
+            )
 
             # 현재 진행 중인 작업 수
-            concurrent_count = self.db.query(RenderJob).filter(
-                and_(
-                    RenderJob.user_id == user_id,
-                    RenderJob.status.in_([RenderStatus.QUEUED, RenderStatus.PROCESSING])
+            concurrent_count = (
+                self.db.query(RenderJob)
+                .filter(
+                    and_(
+                        RenderJob.user_id == user_id,
+                        RenderJob.status.in_(
+                            [RenderStatus.QUEUED, RenderStatus.PROCESSING]
+                        ),
+                    )
                 )
-            ).count()
+                .count()
+            )
 
             # 할당량 체크
             if daily_count >= user.render_quota_daily:
                 return {
                     "allowed": False,
                     "reason": f"Daily quota exceeded ({daily_count}/{user.render_quota_daily})",
-                    "quota_type": "daily"
+                    "quota_type": "daily",
                 }
 
             if monthly_count >= user.render_quota_monthly:
                 return {
                     "allowed": False,
                     "reason": f"Monthly quota exceeded ({monthly_count}/{user.render_quota_monthly})",
-                    "quota_type": "monthly"
+                    "quota_type": "monthly",
                 }
 
             if concurrent_count >= user.concurrent_render_limit:
                 return {
                     "allowed": False,
                     "reason": f"Too many concurrent jobs ({concurrent_count}/{user.concurrent_render_limit})",
-                    "quota_type": "concurrent"
+                    "quota_type": "concurrent",
                 }
 
             return {
                 "allowed": True,
                 "daily_usage": {"used": daily_count, "limit": user.render_quota_daily},
-                "monthly_usage": {"used": monthly_count, "limit": user.render_quota_monthly},
-                "concurrent_usage": {"used": concurrent_count, "limit": user.concurrent_render_limit}
+                "monthly_usage": {
+                    "used": monthly_count,
+                    "limit": user.render_quota_monthly,
+                },
+                "concurrent_usage": {
+                    "used": concurrent_count,
+                    "limit": user.concurrent_render_limit,
+                },
             }
 
         except SQLAlchemyError as e:
@@ -235,7 +255,7 @@ class RenderService:
         self,
         user_id: Optional[str] = None,
         limit: int = 10,
-        status: Optional[str] = None
+        status: Optional[str] = None,
     ) -> List[RenderJob]:
         """렌더링 작업 목록 조회"""
         try:
@@ -255,9 +275,7 @@ class RenderService:
             return []
 
     def get_render_job_history(
-        self,
-        user_id: Optional[str] = None,
-        limit: int = 10
+        self, user_id: Optional[str] = None, limit: int = 10
     ) -> List[Dict[str, Any]]:
         """렌더링 작업 이력 조회"""
         try:
@@ -275,16 +293,22 @@ class RenderService:
 
             history = []
             for job in jobs:
-                history.append({
-                    "jobId": str(job.job_id),
-                    "videoName": job.video_name or "Untitled",
-                    "status": job.status,
-                    "createdAt": job.created_at.isoformat() if job.created_at else None,
-                    "completedAt": job.completed_at.isoformat() if job.completed_at else None,
-                    "downloadUrl": job.download_url,
-                    "fileSize": job.file_size,
-                    "duration": job.duration,
-                })
+                history.append(
+                    {
+                        "jobId": str(job.job_id),
+                        "videoName": job.video_name or "Untitled",
+                        "status": job.status,
+                        "createdAt": job.created_at.isoformat()
+                        if job.created_at
+                        else None,
+                        "completedAt": job.completed_at.isoformat()
+                        if job.completed_at
+                        else None,
+                        "downloadUrl": job.download_url,
+                        "fileSize": job.file_size,
+                        "duration": job.duration,
+                    }
+                )
 
             return history
 
@@ -314,24 +338,28 @@ class RenderService:
     def update_usage_stats(self, job: RenderJob) -> bool:
         """렌더링 완료 시 사용량 통계 업데이트"""
         try:
-            if not job.user_id or job.status not in [RenderStatus.COMPLETED, RenderStatus.FAILED]:
+            if not job.user_id or job.status not in [
+                RenderStatus.COMPLETED,
+                RenderStatus.FAILED,
+            ]:
                 return True  # 통계 업데이트 필요 없음
 
             today = date.today()
 
             # 기존 통계 레코드 조회 또는 생성
-            stats = self.db.query(RenderUsageStats).filter(
-                and_(
-                    RenderUsageStats.user_id == job.user_id,
-                    RenderUsageStats.date == today
+            stats = (
+                self.db.query(RenderUsageStats)
+                .filter(
+                    and_(
+                        RenderUsageStats.user_id == job.user_id,
+                        RenderUsageStats.date == today,
+                    )
                 )
-            ).first()
+                .first()
+            )
 
             if not stats:
-                stats = RenderUsageStats(
-                    user_id=job.user_id,
-                    date=today
-                )
+                stats = RenderUsageStats(user_id=job.user_id, date=today)
                 self.db.add(stats)
 
             # 카운트 업데이트
@@ -349,12 +377,14 @@ class RenderService:
 
                 # 처리 시간 계산 (started_at과 completed_at 기반)
                 if job.started_at and job.completed_at:
-                    processing_time = (job.completed_at - job.started_at).total_seconds()
+                    processing_time = (
+                        job.completed_at - job.started_at
+                    ).total_seconds()
                     stats.total_processing_time += processing_time
 
                 # Cue 개수 카운트
-                if job.scenario and 'cues' in job.scenario:
-                    cues_count = len(job.scenario['cues'])
+                if job.scenario and "cues" in job.scenario:
+                    cues_count = len(job.scenario["cues"])
                     stats.total_cues_processed += cues_count
 
             elif job.status == RenderStatus.FAILED:
@@ -362,9 +392,13 @@ class RenderService:
 
             # 평균값 계산
             if stats.render_success_count > 0:
-                stats.avg_processing_time = stats.total_processing_time / stats.render_success_count
+                stats.avg_processing_time = (
+                    stats.total_processing_time / stats.render_success_count
+                )
                 stats.avg_file_size = stats.total_file_size / stats.render_success_count
-                stats.avg_cues_per_job = stats.total_cues_processed / stats.render_success_count
+                stats.avg_cues_per_job = (
+                    stats.total_cues_processed / stats.render_success_count
+                )
 
             self.db.commit()
             logger.info(f"사용량 통계 업데이트됨 - User: {job.user_id}, Date: {today}")
@@ -375,19 +409,26 @@ class RenderService:
             logger.error(f"사용량 통계 업데이트 실패: {str(e)}")
             return False
 
-    def get_user_usage_stats(self, user_id: str, days: int = 30) -> List[Dict[str, Any]]:
+    def get_user_usage_stats(
+        self, user_id: str, days: int = 30
+    ) -> List[Dict[str, Any]]:
         """사용자 사용량 통계 조회"""
         try:
             end_date = date.today()
             start_date = date(end_date.year, end_date.month, end_date.day - days)
 
-            stats = self.db.query(RenderUsageStats).filter(
-                and_(
-                    RenderUsageStats.user_id == user_id,
-                    RenderUsageStats.date >= start_date,
-                    RenderUsageStats.date <= end_date
+            stats = (
+                self.db.query(RenderUsageStats)
+                .filter(
+                    and_(
+                        RenderUsageStats.user_id == user_id,
+                        RenderUsageStats.date >= start_date,
+                        RenderUsageStats.date <= end_date,
+                    )
                 )
-            ).order_by(RenderUsageStats.date.desc()).all()
+                .order_by(RenderUsageStats.date.desc())
+                .all()
+            )
 
             return [stat.to_dict() for stat in stats]
 

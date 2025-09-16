@@ -3,17 +3,16 @@ from pydantic import BaseModel
 from typing import Optional
 from sqlalchemy.orm import Session
 from app.db.database import get_db
-from app.api.v1.auth import get_current_user
-from app.schemas.user import UserResponse
 
 router = APIRouter(prefix="/api/upload-video", tags=["video"])
 
 
 class PresignedUrlRequest(BaseModel):
     """Presigned URL 생성 요청 모델"""
+
     filename: str
     content_type: Optional[str] = None  # Frontend uses content_type
-    filetype: Optional[str] = None      # Backend legacy support
+    filetype: Optional[str] = None  # Backend legacy support
 
     def get_content_type(self) -> str:
         """Get content type from either field"""
@@ -22,9 +21,10 @@ class PresignedUrlRequest(BaseModel):
 
 class PresignedUrlResponse(BaseModel):
     """Presigned URL 생성 응답 모델"""
+
     presigned_url: str  # Frontend expects presigned_url
-    file_key: str       # Frontend expects file_key (snake_case)
-    expires_in: int     # Frontend expects expires_in
+    file_key: str  # Frontend expects file_key (snake_case)
+    expires_in: int  # Frontend expects expires_in
     # Legacy support
     url: Optional[str] = None
     fileKey: Optional[str] = None
@@ -32,8 +32,7 @@ class PresignedUrlResponse(BaseModel):
 
 @router.post("/generate-url", response_model=PresignedUrlResponse)
 async def generate_presigned_url(
-    request: PresignedUrlRequest,
-    db: Session = Depends(get_db)
+    request: PresignedUrlRequest, db: Session = Depends(get_db)
 ):
     """
     실제 S3 사전 서명된 URL 발급 (임시로 인증 없음)
@@ -102,7 +101,7 @@ async def generate_presigned_url(
             expires_in=presigned_expire,
             # Legacy support
             url=presigned_url,
-            fileKey=file_key
+            fileKey=file_key,
         )
 
     except Exception as e:
