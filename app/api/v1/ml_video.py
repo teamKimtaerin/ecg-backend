@@ -129,8 +129,8 @@ ML_API_TIMEOUT = settings.ML_API_TIMEOUT
 @router.post("/request-process", response_model=ClientProcessResponse)
 @limiter.limit("5/minute")
 async def request_process(
-    request_obj: Request,
-    request: ClientProcessRequest,
+    request: Request,
+    data: ClientProcessRequest,
     background_tasks: BackgroundTasks,
     current_user: UserResponse = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -141,7 +141,7 @@ async def request_process(
 
     try:
         # 입력 검증
-        if not request.fileKey:
+        if not data.fileKey:
             raise HTTPException(status_code=400, detail="fileKey는 필수입니다")
 
         # job_id 생성
@@ -155,7 +155,7 @@ async def request_process(
         s3_bucket_name = os.getenv("S3_BUCKET_NAME", "default-bucket")
         aws_region = os.getenv("AWS_REGION", "us-east-1")
         video_url = (
-            f"https://{s3_bucket_name}.s3.{aws_region}.amazonaws.com/{request.fileKey}"
+            f"https://{s3_bucket_name}.s3.{aws_region}.amazonaws.com/{data.fileKey}"
         )
 
         # PostgreSQL에 작업 생성
@@ -165,7 +165,7 @@ async def request_process(
             status="processing",
             progress=0,
             video_url=video_url,
-            file_key=request.fileKey,
+            file_key=data.fileKey,
         )
 
         logger.info(f"새 비디오 처리 요청 - Job ID: {job_id}")
