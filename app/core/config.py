@@ -47,7 +47,7 @@ class Settings(BaseSettings):
 
     # GPU Render Server Settings
     GPU_RENDER_SERVER_URL: str = Field(
-        default="http://gpu-server:8090",
+        default="http://localhost:8090",
         description="GPU render server URL",
     )
     GPU_RENDER_TIMEOUT: int = Field(
@@ -56,6 +56,29 @@ class Settings(BaseSettings):
     RENDER_CALLBACK_URL: str = Field(
         default="http://localhost:8000",
         description="Callback URL for GPU render results",
+    )
+
+    # Frontend Editor Settings
+    FRONTEND_EDITOR_URL: str = Field(
+        default="http://localhost:3000",
+        description="Frontend editor URL for Playwright rendering"
+    )
+
+    # Phase 2 Streaming Pipeline Settings
+    ENABLE_PHASE2_MONITORING: bool = Field(
+        default=True, description="Enable Phase 2 streaming metrics monitoring"
+    )
+    FRAME_DROP_ALERT_THRESHOLD: float = Field(
+        default=0.05, description="Frame drop rate threshold for alerts (0.05 = 5%)"
+    )
+    MEMORY_ALERT_THRESHOLD_MB: float = Field(
+        default=3000.0, description="Memory usage threshold for alerts in MB"
+    )
+    REDIS_PROGRESS_TTL: int = Field(
+        default=60, description="TTL for progress cache in seconds"
+    )
+    REDIS_METRICS_TTL: int = Field(
+        default=300, description="TTL for metrics cache in seconds"
     )
 
     # Database Settings
@@ -85,6 +108,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = False
+        extra = "ignore"  # 추가 환경변수 무시
 
 
 settings = Settings()

@@ -4,9 +4,9 @@ ML 서버와의 통신을 위한 비디오 처리 API
 EC2 ML 서버로부터 분석 결과를 받고, 비디오 처리 요청을 관리합니다.
 """
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
-from pydantic import BaseModel
-from typing import Dict, Any, Optional, List
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, Request
+from pydantic import BaseModel, ValidationError
+from typing import Dict, Any, Optional
 from enum import Enum
 import asyncio
 import logging
@@ -15,6 +15,8 @@ from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.services.job_service import JobService
 from app.core.config import settings
+from app.api.v1.auth import get_current_user
+from app.schemas.user import UserResponse
 
 # 로거 설정
 logger = logging.getLogger(__name__)
@@ -33,7 +35,7 @@ class ProcessingStatus(Enum):
 
 
 class MLResultRequest(BaseModel):
-    """ML 서버로부터 받는 결과 요청"""
+    """ML 서버로부터 받는 결과 요청 (Webhook Input)"""
 
     job_id: str
     status: str
@@ -42,6 +44,13 @@ class MLResultRequest(BaseModel):
     result: Optional[Dict[str, Any]] = None
     error_message: Optional[str] = None
     error_code: Optional[str] = None
+
+
+class MLResultResponse(BaseModel):
+    """ML 서버 콜백 처리 응답"""
+
+    status: str
+    reason: Optional[str] = None
 
 
 class ClientProcessRequest(BaseModel):
@@ -61,7 +70,7 @@ class ClientProcessResponse(BaseModel):
     """클라이언트에게 보내는 비디오 처리 응답"""
 
     message: str
-    jobId: str
+    job_id: str
 
 
 class VideoProcessResponse(BaseModel):
@@ -99,6 +108,7 @@ ML_API_TIMEOUT = settings.ML_API_TIMEOUT
 async def request_process(
     request: ClientProcessRequest,
     background_tasks: BackgroundTasks,
+    current_user: UserResponse = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
@@ -142,7 +152,7 @@ async def request_process(
         # 백그라운드에서 EC2 ML 서버에 요청 전송 (DB 세션 전달)
         background_tasks.add_task(trigger_ml_server, job_id, video_request, db)
 
-        return ClientProcessResponse(message="Video processing started.", jobId=job_id)
+        return ClientProcessResponse(message="Video processing started.", job_id=job_id)
 
     except Exception as e:
         logger.error(f"클라이언트 비디오 처리 요청 실패: {str(e)}")
@@ -153,24 +163,117 @@ async def request_process(
 # 모든 비디오 처리는 /request-process를 통해 진행
 
 
-@router.post("/result")
+@router.post("/result", response_model=MLResultResponse)
 async def receive_ml_results(
-    ml_result: MLResultRequest,
+    request: Request,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
     """
-    ML 서버로부터 분석 결과를 받는 엔드포인트
+    ⚠️  ML 서버 전용 Webhook 엔드포인트 ⚠️
+
+    이 엔드포인트는 ML 서버가 비디오 처리 결과를 콜백할 때 사용합니다.
+    클라이언트/프론트엔드는 이 엔드포인트를 사용하면 안 됩니다!
+
+    📢 클라이언트는 GET /api/upload-video/status/{job_id} 를 사용하세요!
 
     ML 서버가 호출하는 엔드포인트:
     POST http://fastapi-backend:8000/api/upload-video/result
+
+    Required fields in request body (MLResultRequest):
+    - job_id: str (required)
+    - status: str (required) - one of: "processing", "completed", "failed"
+    - progress: int (optional) - 0-100
+    - message: str (optional)
+    - result: dict (optional) - final results when status="completed"
+    - error_message: str (optional) - error details when status="failed"
     """
 
     try:
+        # 요청 정보 로깅
+        client_ip = request.client.host
+        content_type = request.headers.get("content-type", "unknown")
+        user_agent = request.headers.get("user-agent", "unknown")
+
+        # 원본 요청 본문 읽기 (디버깅용)
+        body = await request.body()
+        body_text = body.decode('utf-8') if body else "empty"
+
+        logger.info(
+            f"ML 콜백 수신 - Client: {client_ip}, Content-Type: {content_type}, "
+            f"User-Agent: {user_agent}, Body: {body_text[:200]}..."
+        )
+
+        # JSON 파싱 및 검증
+        try:
+            import json
+            body_json = json.loads(body_text) if body_text != "empty" else {}
+            ml_result = MLResultRequest(**body_json)
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON 파싱 실패 - Client: {client_ip}, Error: {str(e)}, Body: {body_text}")
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "error": "Invalid JSON format",
+                    "message": str(e),
+                    "received_body": body_text[:500]
+                }
+            )
+        except ValidationError as e:
+            logger.error(
+                f"요청 데이터 검증 실패 - Client: {client_ip}, "
+                f"Validation Errors: {e.errors()}, Body: {body_text}"
+            )
+
+            # 프론트엔드의 잘못된 요청 감지 (User-Agent: node)
+            if user_agent == "node" or "status" in str(e.errors()[0].get("loc", [])):
+                error_detail = {
+                    "error": "⚠️ Frontend API Misuse Detected - Wrong Endpoint!",
+                    "message": "🚨 이 엔드포인트는 ML 서버 전용입니다! 클라이언트는 사용할 수 없습니다.",
+                    "correct_endpoint": "GET /api/upload-video/status/{job_id}",
+                    "wrong_endpoint": "POST /api/upload-video/result (ML Server Webhook Only)",
+                    "bug_report_analysis": {
+                        "issue": "Request/Response 스키마 혼동이 아님",
+                        "reality": "MLResultRequest는 ML 서버 콜백용으로 정확함",
+                        "solution": "프론트엔드는 GET /status/{job_id} 사용 필요"
+                    },
+                    "fix_required": {
+                        "1_change_method": "POST → GET",
+                        "2_change_endpoint": "/api/upload-video/result → /api/upload-video/status/{job_id}",
+                        "3_remove_body": "요청 본문 제거 (GET 요청)",
+                        "4_status_field": "status 필드는 ML 서버가 보내는 것이 맞음"
+                    },
+                    "example_correct_usage": {
+                        "url": "http://localhost:8000/api/upload-video/status/your-job-id",
+                        "method": "GET",
+                        "headers": {"Content-Type": "application/json"}
+                    },
+                    "documentation": "/docs/FRONTEND_CRITICAL_FIX.md",
+                    "validation_errors": e.errors(),
+                    "received_body": body_text[:500]
+                }
+            else:
+                error_detail = {
+                    "error": "Invalid request format",
+                    "validation_errors": e.errors(),
+                    "received_body": body_text[:500],
+                    "expected_format": {
+                        "job_id": "string (required)",
+                        "status": "string (required)",
+                        "progress": "integer (optional)",
+                        "message": "string (optional)",
+                        "result": "object (optional)",
+                        "error_message": "string (optional)"
+                    }
+                }
+
+            raise HTTPException(status_code=422, detail=error_detail)
+
         job_id = ml_result.job_id
 
         logger.info(
-            f"ML 결과 수신 - Job ID: {job_id}, Status: {ml_result.status}, Progress: {ml_result.progress}"
+            f"ML 결과 수신 - Job ID: {job_id}, Status: {ml_result.status}, "
+            f"Progress: {ml_result.progress}, Client: {client_ip}"
         )
 
         # PostgreSQL에서 작업 상태 업데이트
@@ -179,8 +282,23 @@ async def receive_ml_results(
         # 작업이 존재하는지 확인
         job = job_service.get_job(job_id)
         if not job:
-            logger.warning(f"존재하지 않는 Job ID: {job_id}")
+            logger.warning(f"존재하지 않는 Job ID: {job_id}, Client: {client_ip}")
             raise HTTPException(status_code=404, detail="해당 작업을 찾을 수 없습니다")
+
+        # 이미 완료된 작업에 대한 추가 요청 체크
+        if job.status == "completed" and ml_result.status in ["completed", "processing"]:
+            logger.warning(
+                f"이미 완료된 작업에 대한 추가 콜백 무시 - Job ID: {job_id}, "
+                f"Current Status: {job.status}, New Status: {ml_result.status}, Client: {client_ip}"
+            )
+            return MLResultResponse(status="ignored", reason="job_already_completed")
+
+        if job.status == "failed" and ml_result.status != "failed":
+            logger.warning(
+                f"실패한 작업에 대한 상태 변경 시도 무시 - Job ID: {job_id}, "
+                f"Current Status: {job.status}, New Status: {ml_result.status}, Client: {client_ip}"
+            )
+            return MLResultResponse(status="ignored", reason="job_already_failed")
 
         # 상태에 따라 처리
         if ml_result.status == "processing":
@@ -222,10 +340,27 @@ async def receive_ml_results(
         if not success:
             raise HTTPException(status_code=500, detail="작업 상태 업데이트 실패")
 
-        return {"status": "received"}
+        return MLResultResponse(status="received")
 
     except HTTPException:
         raise
+    except ValidationError as e:
+        logger.error(f"요청 데이터 검증 실패 - Validation Errors: {e.errors()}")
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error": "Invalid request format",
+                "validation_errors": e.errors(),
+                "expected_format": {
+                    "job_id": "string (required)",
+                    "status": "string (required)",
+                    "progress": "integer (optional)",
+                    "message": "string (optional)",
+                    "result": "object (optional)",
+                    "error_message": "string (optional)"
+                }
+            }
+        )
     except Exception as e:
         logger.error(f"ML 결과 처리 중 오류: {str(e)}")
         raise HTTPException(status_code=500, detail=f"결과 처리 실패: {str(e)}")
@@ -262,26 +397,8 @@ async def get_job_status(job_id: str, db: Session = Depends(get_db)):
         return response
 
 
-@router.get("/jobs", response_model=List[Dict[str, Any]])
-async def list_all_jobs(db: Session = Depends(get_db)):
-    """모든 작업 목록 조회 (개발/테스트용)"""
-
-    job_service = JobService(db)
-    jobs_data = job_service.list_all_jobs()
-
-    jobs = []
-    for job in jobs_data:
-        jobs.append(
-            {
-                "job_id": str(job.job_id),
-                "status": job.status,
-                "progress": job.progress,
-                "created_at": job.created_at.isoformat(),
-                "last_updated": job.updated_at.isoformat() if job.updated_at else None,
-            }
-        )
-
-    return jobs
+# /jobs 엔드포인트 제거됨 - 보안상 위험하므로 삭제
+# 모든 작업 목록 조회는 관리자 대시보드에서만 가능하도록 변경
 
 
 # 백그라운드 태스크 함수들

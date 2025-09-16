@@ -16,37 +16,55 @@ logger = logging.getLogger(__name__)
 @app.on_event("startup")
 async def startup_event():
     """애플리케이션 시작 시 실행되는 이벤트"""
-    # DATABASE_URL이 기본값(로컬)이 아닌 경우만 데이터베이스 초기화 시도
-    if not settings.database_url.startswith(
-        "postgresql://ecg_user:ecg_password@localhost"
-    ):
-        try:
-            # 데이터베이스 초기화 (테이블 생성 + 시드 데이터)
-            from app.db.init_db import init_database
+    # 테스트 모드에서는 데이터베이스 초기화 건너뛰기
+    if os.getenv("MODE") == "test":
+        logger.info("Skipping database initialization for testing mode")
+        return
 
-            logger.info("Starting database initialization...")
-            init_database()
-            logger.info("Database initialization completed")
-        except Exception as e:
-            logger.error(f"Database initialization failed: {str(e)}")
-            # 애플리케이션은 계속 실행 (이미 테이블이 있을 수 있음)
-    else:
-        logger.info(
-            "Skipping database initialization (using default/local database URL)"
-        )
+    # 프로덕션 환경에서 DB 초기화
+    logger.info("Starting database initialization...")
+    try:
+        from app.db.init_db import init_database
+        init_database()
+        logger.info("Database initialization completed successfully")
+    except Exception as e:
+        logger.error(f"Database initialization failed: {str(e)}")
+        # 프로덕션에서는 DB 초기화 실패 시에도 서버 시작을 허용
+        # (이미 초기화된 DB일 수 있음)
 
 
 # 세션 미들웨어 추가 (OAuth에 필요)
 app.add_middleware(SessionMiddleware, secret_key=settings.secret_key)
 
 # CORS 설정 - 환경변수에서 허용된 origins 읽기
-cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
+default_origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    # Production domains
+    "https://ecg-frontend.vercel.app",
+    "https://ecg-project.com"
+]
+
+# 환경변수가 있으면 그것을 사용, 없으면 기본값 사용
+cors_origins_env = os.getenv("CORS_ORIGINS", "")
+if cors_origins_env:
+    cors_origins = cors_origins_env.split(",")
+else:
+    cors_origins = default_origins
+
+# 개발 환경에서는 모든 origin 허용 옵션
+if os.getenv("ALLOW_ALL_ORIGINS", "false").lower() == "true":
+    cors_origins = ["*"]
+
+logger.info(f"CORS Origins configured: {cors_origins}")
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"]  # 모든 헤더를 프론트엔드에 노출
 )
 
 # API 라우터 등록
