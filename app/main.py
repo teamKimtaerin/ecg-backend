@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -52,10 +52,11 @@ async def startup_event():
 
         # 30분 이상 처리 중인 작업 찾기
         cutoff_time = datetime.utcnow() - timedelta(minutes=30)
-        zombie_jobs = db.query(Job).filter(
-            Job.status == JobStatus.PROCESSING,
-            Job.updated_at < cutoff_time
-        ).all()
+        zombie_jobs = (
+            db.query(Job)
+            .filter(Job.status == JobStatus.PROCESSING, Job.updated_at < cutoff_time)
+            .all()
+        )
 
         zombie_count = len(zombie_jobs)
         if zombie_count > 0:
@@ -73,7 +74,7 @@ async def startup_event():
         logger.error(f"Zombie job cleanup failed: {str(e)}")
         # 좀비 정리 실패는 서버 시작을 막지 않음
     finally:
-        if 'db' in locals():
+        if "db" in locals():
             db.close()
 
 
@@ -123,8 +124,6 @@ async def root():
 @app.get("/health")
 async def health_check():
     return {"status": "healthy", "service": "ECG Backend"}
-
-
 
 
 if __name__ == "__main__":

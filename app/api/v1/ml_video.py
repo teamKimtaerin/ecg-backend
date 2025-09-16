@@ -36,9 +36,7 @@ def verify_hmac_signature(request_body: bytes, signature: str, secret_key: str) 
     """
     try:
         expected_signature = hmac.new(
-            secret_key.encode('utf-8'),
-            request_body,
-            hashlib.sha256
+            secret_key.encode("utf-8"), request_body, hashlib.sha256
         ).hexdigest()
 
         # 시간 공격을 방지하기 위한 안전한 비교
@@ -221,11 +219,17 @@ async def receive_ml_results(
 
         # HMAC 서명 검증 (선택적 - 환경변수로 활성화)
         signature_header = request.headers.get("X-Signature-256", "")
-        webhook_secret = getattr(settings, 'webhook_secret_key', None) or settings.secret_key
+        webhook_secret = (
+            getattr(settings, "webhook_secret_key", None) or settings.secret_key
+        )
 
         if signature_header and webhook_secret:
-            if not verify_hmac_signature(request_body, signature_header, webhook_secret):
-                logger.warning(f"HMAC signature verification failed from IP: {request.client.host}")
+            if not verify_hmac_signature(
+                request_body, signature_header, webhook_secret
+            ):
+                logger.warning(
+                    f"HMAC signature verification failed from IP: {request.client.host}"
+                )
                 raise HTTPException(status_code=401, detail="Invalid signature")
         elif signature_header:
             logger.warning("HMAC signature provided but no webhook secret configured")
@@ -234,7 +238,7 @@ async def receive_ml_results(
         client_ip = request.client.host
         content_type = request.headers.get("content-type", "unknown")
         user_agent = request.headers.get("user-agent", "unknown")
-        body_text = request_body.decode('utf-8') if request_body else "empty"
+        body_text = request_body.decode("utf-8") if request_body else "empty"
 
         logger.info(
             f"ML 콜백 수신 - Client: {client_ip}, Content-Type: {content_type}, "
@@ -326,7 +330,10 @@ async def receive_ml_results(
             raise HTTPException(status_code=404, detail="해당 작업을 찾을 수 없습니다")
 
         # 멱등성 보장: 이미 완료된 작업에 대한 요청은 조용히 성공 처리
-        if job.status == "completed" and ml_result.status in ["completed", "processing"]:
+        if job.status == "completed" and ml_result.status in [
+            "completed",
+            "processing",
+        ]:
             logger.info(
                 f"멱등성 처리 - 이미 완료된 작업에 대한 콜백: Job ID: {job_id}, "
                 f"Current Status: {job.status}, New Status: {ml_result.status}"
@@ -353,7 +360,9 @@ async def receive_ml_results(
 
             elif ml_result.status in ["completed", "failed"]:
                 # 최종 결과 처리
-                final_status = "completed" if ml_result.status == "completed" else "failed"
+                final_status = (
+                    "completed" if ml_result.status == "completed" else "failed"
+                )
                 success = job_service.update_job_status(
                     job_id=job_id,
                     status=final_status,
@@ -375,7 +384,9 @@ async def receive_ml_results(
                     )
             else:
                 # 알 수 없는 상태
-                logger.warning(f"알 수 없는 상태 - Job ID: {job_id}, Status: {ml_result.status}")
+                logger.warning(
+                    f"알 수 없는 상태 - Job ID: {job_id}, Status: {ml_result.status}"
+                )
                 success = True
 
             if not success:
@@ -422,6 +433,7 @@ async def get_job_status(job_id: str, db: Session = Depends(get_db)):
     # UUID 형식 검증
     try:
         import uuid
+
         uuid.UUID(job_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Job ID는 유효한 UUID 형식이어야 합니다")

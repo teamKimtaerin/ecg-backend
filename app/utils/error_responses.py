@@ -101,7 +101,7 @@ class RenderError:
         error_detail = {
             "error": "STATUS_QUERY_FAILED",
             "message": f"Failed to query render job status: {reason}",
-            "code": "RENDER_STATUS_QUERY_FAILED"
+            "code": "RENDER_STATUS_QUERY_FAILED",
         }
 
         return HTTPException(status_code=500, detail=error_detail)

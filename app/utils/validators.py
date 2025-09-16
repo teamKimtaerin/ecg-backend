@@ -30,22 +30,27 @@ def validate_video_url(url: str) -> Dict[str, Any]:
             return {"valid": False, "reason": "Invalid URL format"}
 
         # 로컬호스트인지 확인
-        is_localhost = parsed.netloc.startswith('localhost') or parsed.netloc.startswith('127.0.0.1')
+        is_localhost = parsed.netloc.startswith(
+            "localhost"
+        ) or parsed.netloc.startswith("127.0.0.1")
 
         # 프로토콜 검증 (로컬호스트는 HTTP 허용, 그 외는 HTTPS 필수)
-        if not is_localhost and parsed.scheme != 'https':
-            return {"valid": False, "reason": "Only HTTPS URLs are allowed (except for localhost)"}
+        if not is_localhost and parsed.scheme != "https":
+            return {
+                "valid": False,
+                "reason": "Only HTTPS URLs are allowed (except for localhost)",
+            }
 
         # 허용된 도메인 체크 (화이트리스트)
         allowed_domains = [
-            's3.amazonaws.com',
-            's3.ap-northeast-2.amazonaws.com',
-            's3.us-east-1.amazonaws.com',
-            'storage.googleapis.com',
-            'storage.cloud.google.com',
-            'd1234567890.cloudfront.net',  # CloudFront 패턴 예시
-            'localhost',  # 로컬 테스트용
-            '127.0.0.1',  # 로컬 테스트용
+            "s3.amazonaws.com",
+            "s3.ap-northeast-2.amazonaws.com",
+            "s3.us-east-1.amazonaws.com",
+            "storage.googleapis.com",
+            "storage.cloud.google.com",
+            "d1234567890.cloudfront.net",  # CloudFront 패턴 예시
+            "localhost",  # 로컬 테스트용
+            "127.0.0.1",  # 로컬 테스트용
         ]
 
         # 도메인 매칭 (서브도메인 포함)

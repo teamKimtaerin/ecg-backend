@@ -6,7 +6,6 @@ import redis
 from typing import Optional, Any, Dict
 import json
 import os
-from app.core.config import settings
 
 # Redis 연결 설정
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
@@ -29,10 +28,7 @@ class RedisClient:
     """Redis 클라이언트 래퍼 (Read-Only: GPU Server가 Single Source of Truth)"""
 
     def __init__(self):
-        self.client = redis.Redis(
-            connection_pool=redis_pool,
-            decode_responses=True
-        )
+        self.client = redis.Redis(connection_pool=redis_pool, decode_responses=True)
 
     # ❌ 제거된 Write 메서드들 (GPU Server 전용)
     # - set_job_data(): GPU Server에서만 작업 데이터 저장
@@ -51,7 +47,9 @@ class RedisClient:
             print(f"Redis get job data error: {e}")
             return None
 
-    def get_worker_status(self, job_id: str, worker_id: int) -> Optional[Dict[str, Any]]:
+    def get_worker_status(
+        self, job_id: str, worker_id: int
+    ) -> Optional[Dict[str, Any]]:
         """단일 Worker 상태 조회 (GPU Server가 설정한 상태 읽기)"""
         try:
             key = f"worker:{job_id}:{worker_id}"
@@ -61,7 +59,9 @@ class RedisClient:
             print(f"Redis get worker status error: {e}")
             return None
 
-    def get_all_worker_status(self, job_id: str, worker_count: int = 4) -> Dict[int, Dict]:
+    def get_all_worker_status(
+        self, job_id: str, worker_count: int = 4
+    ) -> Dict[int, Dict]:
         """모든 Worker 상태 조회 (GPU Server가 설정한 상태들 읽기)"""
         try:
             statuses = {}
