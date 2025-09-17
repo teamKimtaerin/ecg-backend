@@ -123,9 +123,10 @@ app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(
     SessionMiddleware,
     secret_key=settings.secret_key,
-    same_site="lax",  # Cross-origin 요청 허용
-    https_only=False,  # 개발환경 고려
+    same_site="none",  # CloudFront 프록시 환경에서 세션 유지
+    https_only=False,  # HTTP 프록시 허용
     max_age=3600,  # 1시간
+    session_cookie="session",  # 명시적 쿠키 이름
 )
 
 # CORS 설정 - 환경변수에서 허용된 origins 읽기
