@@ -39,13 +39,11 @@ async def signup(user_data: UserCreate, db: Session = Depends(get_db)):
     )
 
     # Response 생성
-    response = JSONResponse(
-        content={
-            "access_token": access_token,
-            "token_type": "bearer",
-            "user": UserResponse.from_orm(user).dict(),
-        }
-    )
+    response = JSONResponse(content={
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": UserResponse.model_validate(user).model_dump(),
+    })
 
     # Refresh token을 HttpOnly 쿠키로 설정
     response.set_cookie(
@@ -89,13 +87,11 @@ async def login(user_data: UserLogin, db: Session = Depends(get_db)):
     )
 
     # Response 생성
-    response = JSONResponse(
-        content={
-            "access_token": access_token,
-            "token_type": "bearer",
-            "user": UserResponse.from_orm(user).dict(),
-        }
-    )
+    response = JSONResponse(content={
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": UserResponse.model_validate(user).model_dump(),
+    })
 
     # Refresh token을 HttpOnly 쿠키로 설정
     response.set_cookie(
@@ -165,7 +161,7 @@ async def get_current_user(
     현재 로그인한 사용자 정보 조회
     - JWT 토큰 (Bearer 또는 HttpOnly 쿠키)으로 사용자 확인
     """
-    return UserResponse.from_orm(current_user)
+    return UserResponse.model_validate(current_user)
 
 
 @router.post("/refresh")
