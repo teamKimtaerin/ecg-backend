@@ -93,7 +93,7 @@ async def login(user_data: UserLogin, db: Session = Depends(get_db)):
         content={
             "access_token": access_token,
             "token_type": "bearer",
-            "user": UserResponse.model_validate(user).model_dump(mode="json"),
+            "user": UserResponse.model_validate(user).model_dump(mode='json'),
         }
     )
 
