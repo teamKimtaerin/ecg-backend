@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project Overview
+## Project Overview!
 
 ECG Backend is a FastAPI application for Expressive Caption Generation that provides video processing and user authentication services. The project integrates with AWS S3 for file storage, PostgreSQL for data persistence, and includes OAuth authentication through Google. It's designed to work with ML servers for audio/video processing and analysis using Whisper models. The application is containerized with Docker and includes comprehensive CI/CD workflows.
 
