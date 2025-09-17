@@ -33,7 +33,7 @@ class ProcessVideoRequest(BaseModel):
     video_path: str
     enable_gpu: bool = True
     emotion_detection: bool = True
-    language: str = "auto"  # "ko", "en", "auto"
+    # language: str = "auto"  # "ko", "en", "auto"
     max_workers: int = 4
 
 

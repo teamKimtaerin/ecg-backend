@@ -483,7 +483,7 @@ async def trigger_ml_server(job_id: str, request: VideoProcessRequest, db_sessio
             "fastapi_base_url": FASTAPI_BASE_URL,  # 동적 콜백 URL 제공
             "enable_gpu": True,  # GPU 사용 여부
             "emotion_detection": True,  # 감정 분석 여부
-            "language": "auto",  # 언어 설정 (기본값: auto)
+            # "language": "auto",  # 언어 설정 (기본값: auto)
             "max_workers": 4,  # 최대 워커 수
         }
 
@@ -550,7 +550,7 @@ async def _send_request_to_ml_server(
             "job_id": job_id,
             "video_url": payload.get("video_url"),
             "fastapi_base_url": payload.get("fastapi_base_url"),
-            "language": payload.get("language", "auto"),
+            # "language": payload.get("language", "auto"),
             "enable_gpu": payload.get("enable_gpu", True),
             "emotion_detection": payload.get("emotion_detection", True),
             "max_workers": payload.get("max_workers", 4),
