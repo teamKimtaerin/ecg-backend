@@ -39,11 +39,13 @@ async def signup(user_data: UserCreate, db: Session = Depends(get_db)):
     )
 
     # Response 생성
-    response = JSONResponse(content={
-        "access_token": access_token,
-        "token_type": "bearer",
-        "user": UserResponse.model_validate(user).model_dump(),
-    })
+    response = JSONResponse(
+        content={
+            "access_token": access_token,
+            "token_type": "bearer",
+            "user": UserResponse.model_validate(user).model_dump(),
+        }
+    )
 
     # Refresh token을 HttpOnly 쿠키로 설정
     response.set_cookie(
@@ -87,11 +89,13 @@ async def login(user_data: UserLogin, db: Session = Depends(get_db)):
     )
 
     # Response 생성
-    response = JSONResponse(content={
-        "access_token": access_token,
-        "token_type": "bearer",
-        "user": UserResponse.model_validate(user).model_dump(),
-    })
+    response = JSONResponse(
+        content={
+            "access_token": access_token,
+            "token_type": "bearer",
+            "user": UserResponse.model_validate(user).model_dump(),
+        }
+    )
 
     # Refresh token을 HttpOnly 쿠키로 설정
     response.set_cookie(
