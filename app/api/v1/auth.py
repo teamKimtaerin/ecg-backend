@@ -232,7 +232,7 @@ async def google_login(request: Request):
     return await google.authorize_redirect(request, redirect_uri)
 
 
-@router.get("/google/callback", response_model=Token)
+@router.get("/google/callback")
 async def google_callback(request: Request, db: Session = Depends(get_db)):
     """
     Google OAuth 콜백 처리
@@ -240,8 +240,13 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
     - 성공 시 프론트엔드로 토큰과 함께 리디렉션
     """
     try:
+        # 디버깅을 위한 로그 추가
+        print(f"OAuth callback received: {request.url}")
+
         google = oauth.create_client("google")
         token = await google.authorize_access_token(request)
+
+        print(f"Token received: {bool(token)}")
 
         # Google 사용자 정보 가져오기
         user_info = await auth_service.get_google_user_info(token["access_token"])
@@ -306,12 +311,16 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
 
     except OAuthError as e:
         # OAuth 에러 시에도 프론트엔드로 리디렉션
+        print(f"OAuth Error: {str(e)}")
         error_message = f"Google OAuth 인증 실패: {str(e)}"
         return RedirectResponse(
             url=f"{settings.frontend_url}/auth/callback?error={error_message}"
         )
     except Exception as e:
         # 일반 에러 시에도 프론트엔드로 리디렉션
+        print(f"General Error in OAuth callback: {str(e)}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
         error_message = f"Google 로그인 처리 중 오류가 발생했습니다: {str(e)}"
         return RedirectResponse(
             url=f"{settings.frontend_url}/auth/callback?error={error_message}"
