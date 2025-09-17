@@ -548,8 +548,8 @@ async def _send_request_to_ml_server(
     try:
         # ML_API.md 명세에 따른 ML 서버 URL
 
-        ml_api_url = os.getenv("MODEL_SERVER_URL", "http://10.0.10.42:8001")
-        timeout = float(os.getenv("ML_API_TIMEOUT", "30"))  # 요청만 전송하므로 짧은 타임아웃
+        ml_api_url = MODEL_SERVER_URL  # settings에서 가져온 ML 서버 URL 사용
+        timeout = float(ML_API_TIMEOUT)  # settings에서 가져온 타임아웃 사용
 
         # ML_API.md 명세에 따른 요청 페이로드 (확장된 파라미터 포함)
         api_payload = {
