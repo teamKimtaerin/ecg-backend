@@ -8,7 +8,7 @@ ECG Backend is a FastAPI application for Expressive Caption Generation that prov
 
 ## System Architecture!
 
-### Two-Phase Processing System!
+### Two-Phase Processing System!!
 
 The ECG Backend implements a sophisticated two-phase system for video processing and rendering:
 
