@@ -8,14 +8,13 @@ import httpx
 from app.models.user import User, AuthProvider
 from app.schemas.user import UserCreate
 from app.core.config import settings
-import os
 
 # 비밀번호 암호화 설정
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # JWT 설정
 ALGORITHM = "HS256"
-REFRESH_TOKEN_EXPIRE_DAYS = 30    # 30일
+REFRESH_TOKEN_EXPIRE_DAYS = 30  # 30일
 
 
 class AuthService:
@@ -35,24 +34,32 @@ class AuthService:
     def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
         """JWT 액세스 토큰 생성"""
         from datetime import timezone
+
         to_encode = data.copy()
         if expires_delta:
             expire = datetime.now(timezone.utc) + expires_delta
         else:
-            expire = datetime.now(timezone.utc) + timedelta(minutes=settings.jwt_access_token_expire_minutes)
+            expire = datetime.now(timezone.utc) + timedelta(
+                minutes=settings.jwt_access_token_expire_minutes
+            )
 
         to_encode.update({"exp": expire, "type": "access"})
-        encoded_jwt = jwt.encode(to_encode, settings.jwt_secret_key, algorithm=ALGORITHM)
+        encoded_jwt = jwt.encode(
+            to_encode, settings.jwt_secret_key, algorithm=ALGORITHM
+        )
         return encoded_jwt
 
     @staticmethod
     def create_refresh_token(data: dict):
         """JWT 리프레시 토큰 생성"""
         from datetime import timezone
+
         to_encode = data.copy()
         expire = datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
         to_encode.update({"exp": expire, "type": "refresh"})
-        encoded_jwt = jwt.encode(to_encode, settings.jwt_secret_key, algorithm=ALGORITHM)
+        encoded_jwt = jwt.encode(
+            to_encode, settings.jwt_secret_key, algorithm=ALGORITHM
+        )
         return encoded_jwt
 
     @staticmethod

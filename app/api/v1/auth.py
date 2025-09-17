@@ -24,7 +24,6 @@ async def signup(user_data: UserCreate, db: Session = Depends(get_db)):
             status_code=status.HTTP_400_BAD_REQUEST, detail="이미 사용 중인 이메일입니다."
         )
 
-
     # 사용자 생성
     try:
         user = auth_service.create_user(db, user_data)
@@ -40,11 +39,13 @@ async def signup(user_data: UserCreate, db: Session = Depends(get_db)):
     )
 
     # Response 생성
-    response = JSONResponse(content={
-        "access_token": access_token,
-        "token_type": "bearer",
-        "user": UserResponse.from_orm(user).dict(),
-    })
+    response = JSONResponse(
+        content={
+            "access_token": access_token,
+            "token_type": "bearer",
+            "user": UserResponse.from_orm(user).dict(),
+        }
+    )
 
     # Refresh token을 HttpOnly 쿠키로 설정
     response.set_cookie(
@@ -88,11 +89,13 @@ async def login(user_data: UserLogin, db: Session = Depends(get_db)):
     )
 
     # Response 생성
-    response = JSONResponse(content={
-        "access_token": access_token,
-        "token_type": "bearer",
-        "user": UserResponse.from_orm(user).dict(),
-    })
+    response = JSONResponse(
+        content={
+            "access_token": access_token,
+            "token_type": "bearer",
+            "user": UserResponse.from_orm(user).dict(),
+        }
+    )
 
     # Refresh token을 HttpOnly 쿠키로 설정
     response.set_cookie(
@@ -191,8 +194,7 @@ async def refresh_token(request: Request, db: Session = Depends(get_db)):
 
     if not user:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="사용자를 찾을 수 없습니다."
+            status_code=status.HTTP_404_NOT_FOUND, detail="사용자를 찾을 수 없습니다."
         )
 
     # 새로운 access token 생성
@@ -200,10 +202,12 @@ async def refresh_token(request: Request, db: Session = Depends(get_db)):
         data={"user_id": user.id, "email": user.email}
     )
 
-    return JSONResponse(content={
-        "access_token": new_access_token,
-        "token_type": "bearer",
-    })
+    return JSONResponse(
+        content={
+            "access_token": new_access_token,
+            "token_type": "bearer",
+        }
+    )
 
 
 @router.post("/logout")
@@ -284,9 +288,11 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
             if settings.cors_origins
             else "http://localhost:3000"
         )
-        frontend_url = frontend_url.rstrip('/')
+        frontend_url = frontend_url.rstrip("/")
 
-        response = RedirectResponse(url=f"{frontend_url}/auth/callback?token={access_token}")
+        response = RedirectResponse(
+            url=f"{frontend_url}/auth/callback?token={access_token}"
+        )
 
         # Refresh token을 HttpOnly 쿠키로 설정
         response.set_cookie(
@@ -322,5 +328,3 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
         return RedirectResponse(
             url=f"{frontend_url}/auth/callback?error={error_message}"
         )
-
-
