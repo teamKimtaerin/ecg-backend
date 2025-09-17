@@ -6,21 +6,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ECG Backend is a FastAPI application for Expressive Caption Generation that provides video processing and user authentication services. The project integrates with AWS S3 for file storage, PostgreSQL for data persistence, and includes OAuth authentication through Google. It's designed to work with ML servers for audio/video processing and analysis using Whisper models. The application is containerized with Docker and includes comprehensive CI/CD workflows.
 
-## System Architecture
+## System Architecture!
 
 ### Two-Phase Processing System
 
 The ECG Backend implements a sophisticated two-phase system for video processing and rendering:
 
-#### Phase 1: Upload & Audio Analysis
+#### Phase 1: Upload & Audio Analysis!!
 
 ```
-Frontend → API Server → S3 Storage → ML Audio Server → Client
+Frontend → API Server → S3 Storage → ML Audio Server → Client!!
    ↓           ↓            ↓             ↓           ↓
 Upload     Process &    Store Video   WhisperX     Return
 Video      Validate     + Metadata    Analysis     Results
 Request    (+Auth)      (Presigned)   (Async)      (JSON)
-```
 
 **Process Flow:**
 
@@ -35,12 +34,14 @@ Request    (+Auth)      (Presigned)   (Async)      (JSON)
 #### Phase 2: Export & GPU Rendering
 
 ```
+
 Frontend → API Server → GPU Render Server → Client
-   ↓           ↓              ↓              ↓
-Export     Validate      Playwright +      Download
-Request    (+Quotas)     FFmpeg Render     Rendered
-(Scenario) (+Rate Limit) (20-40x Speed)    Video
-```
+↓ ↓ ↓ ↓
+Export Validate Playwright + Download
+Request (+Quotas) FFmpeg Render Rendered
+(Scenario) (+Rate Limit) (20-40x Speed) Video
+
+````
 
 **Process Flow:**
 
@@ -77,7 +78,7 @@ pip install -r requirements.txt
 # Set up environment variables
 cp .env.example .env
 # Then edit .env with actual values
-```
+````
 
 ### Code Quality Tools
 
