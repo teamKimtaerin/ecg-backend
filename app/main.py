@@ -1,6 +1,7 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -8,6 +9,7 @@ from app.api.v1.routers import api_router
 from app.core.config import settings
 import os
 import logging
+import time
 
 app = FastAPI(title="ECG Backend API", version="1.0.0")
 
@@ -19,6 +21,42 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # 로깅 설정
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+# 요청 로깅 미들웨어
+class RequestLoggingMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        start_time = time.time()
+
+        # 요청 정보 로깅 (특히 OAuth 콜백 관련)
+        client_ip = request.headers.get("x-forwarded-for", request.client.host if request.client else "unknown")
+        user_agent = request.headers.get("user-agent", "unknown")
+
+        if "/api/auth/google" in str(request.url):
+            logger.info(f"🔵 OAuth Request: {request.method} {request.url}")
+            logger.info(f"🔵 Client IP: {client_ip}")
+            logger.info(f"🔵 User-Agent: {user_agent}")
+            logger.info(f"🔵 Headers: {dict(request.headers)}")
+
+        # 응답 처리
+        try:
+            response = await call_next(request)
+            process_time = time.time() - start_time
+
+            if "/api/auth/google" in str(request.url):
+                logger.info(f"🟢 OAuth Response: {response.status_code} - {process_time:.3f}s")
+
+            return response
+        except Exception as e:
+            process_time = time.time() - start_time
+
+            if "/api/auth/google" in str(request.url):
+                logger.error(f"🔴 OAuth Error: {str(e)} - {process_time:.3f}s")
+                logger.error(f"🔴 Exception type: {type(e)}")
+                import traceback
+                logger.error(f"🔴 Traceback: {traceback.format_exc()}")
+
+            raise
 
 
 @app.on_event("startup")
@@ -77,6 +115,9 @@ async def startup_event():
         if "db" in locals():
             db.close()
 
+
+# 요청 로깅 미들웨어 추가 (가장 먼저)
+app.add_middleware(RequestLoggingMiddleware)
 
 # 세션 미들웨어 추가 (OAuth에 필요)
 app.add_middleware(SessionMiddleware, secret_key=settings.secret_key)
