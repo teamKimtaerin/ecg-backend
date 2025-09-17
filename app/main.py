@@ -120,7 +120,13 @@ async def startup_event():
 app.add_middleware(RequestLoggingMiddleware)
 
 # 세션 미들웨어 추가 (OAuth에 필요)
-app.add_middleware(SessionMiddleware, secret_key=settings.secret_key)
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.secret_key,
+    same_site="lax",  # Cross-origin 요청 허용
+    https_only=False,  # 개발환경 고려
+    max_age=3600,  # 1시간
+)
 
 # CORS 설정 - 환경변수에서 허용된 origins 읽기
 default_origins = [
