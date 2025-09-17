@@ -79,6 +79,7 @@ class ClientProcessRequest(BaseModel):
     """클라이언트로부터 받는 비디오 처리 요청"""
 
     fileKey: str
+    language: Optional[str] = None  # 언어 코드 (선택적, 없으면 자동 감지)
 
 
 class VideoProcessRequest(BaseModel):
@@ -86,6 +87,7 @@ class VideoProcessRequest(BaseModel):
 
     job_id: str
     video_url: str
+    language: Optional[str] = None  # 언어 코드
 
 
 class ClientProcessResponse(BaseModel):
@@ -171,7 +173,11 @@ async def request_process(
         logger.info(f"새 비디오 처리 요청 - Job ID: {job_id}")
 
         # VideoProcessRequest 객체 생성
-        video_request = VideoProcessRequest(job_id=job_id, video_url=video_url)
+        video_request = VideoProcessRequest(
+            job_id=job_id,
+            video_url=video_url,
+            language=data.language or "auto"  # 없으면 자동 감지
+        )
 
         # 백그라운드에서 EC2 ML 서버에 요청 전송 (DB 세션 전달)
         background_tasks.add_task(trigger_ml_server, job_id, video_request, db)
@@ -483,7 +489,7 @@ async def trigger_ml_server(job_id: str, request: VideoProcessRequest, db_sessio
             "fastapi_base_url": FASTAPI_BASE_URL,  # 동적 콜백 URL 제공
             "enable_gpu": True,  # GPU 사용 여부
             "emotion_detection": True,  # 감정 분석 여부
-            # "language": "auto",  # 언어 설정 (기본값: auto)
+            "language": request.language,  # 언어 설정 (frontend에서 지정 또는 auto)
             "max_workers": 4,  # 최대 워커 수
         }
 
@@ -550,7 +556,7 @@ async def _send_request_to_ml_server(
             "job_id": job_id,
             "video_url": payload.get("video_url"),
             "fastapi_base_url": payload.get("fastapi_base_url"),
-            # "language": payload.get("language", "auto"),
+            "language": payload.get("language", "auto"),  # Frontend 지정 언어 또는 자동 감지
             "enable_gpu": payload.get("enable_gpu", True),
             "emotion_detection": payload.get("emotion_detection", True),
             "max_workers": payload.get("max_workers", 4),
