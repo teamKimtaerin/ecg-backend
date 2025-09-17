@@ -110,6 +110,12 @@ class Settings(BaseSettings):
     google_client_secret: str = Field(..., description="Google OAuth client secret")
     google_redirect_uri: str = Field(..., description="Google OAuth redirect URI")
 
+    # Frontend URL Settings
+    frontend_url: str = Field(
+        default="http://localhost:3000",
+        description="Frontend application URL for OAuth redirects",
+    )
+
     class Config:
         env_file = ".env"
         case_sensitive = False
