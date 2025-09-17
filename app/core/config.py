@@ -113,7 +113,7 @@ class Settings(BaseSettings):
     # Frontend URL Settings
     frontend_url: str = Field(
         default="http://localhost:3000",
-        description="Frontend application URL for OAuth redirects"
+        description="Frontend application URL for OAuth redirects",
     )
 
     class Config:
