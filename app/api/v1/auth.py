@@ -1,7 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends, status, Request
 from fastapi.responses import RedirectResponse, JSONResponse
-
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from authlib.integrations.base_client.errors import OAuthError
 from app.db.database import get_db
@@ -11,7 +9,6 @@ from app.models.user import User, AuthProvider
 from app.core.config import settings
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
-security = HTTPBearer()
 
 
 @router.post("/signup", status_code=status.HTTP_201_CREATED)
@@ -27,11 +24,6 @@ async def signup(user_data: UserCreate, db: Session = Depends(get_db)):
             status_code=status.HTTP_400_BAD_REQUEST, detail="이미 사용 중인 이메일입니다."
         )
 
-    # 사용자명 중복 확인
-    if auth_service.get_user_by_username(db, user_data.username):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="이미 사용 중인 사용자명입니다."
-        )
 
     # 사용자 생성
     try:
@@ -115,23 +107,23 @@ async def login(user_data: UserLogin, db: Session = Depends(get_db)):
     return response
 
 
-@router.get("/me", response_model=UserResponse)
-async def get_current_user(
+async def get_current_user_dependency(
     request: Request,
     db: Session = Depends(get_db),
-    credentials: HTTPAuthorizationCredentials = None,
-):
+) -> User:
     """
-    현재 로그인한 사용자 정보 조회
-    - JWT 토큰 (Bearer 또는 HttpOnly 쿠키)으로 사용자 확인
+    현재 로그인한 사용자를 반환하는 의존성 함수
+    - JWT 토큰 (Bearer 헤더 또는 HttpOnly 쿠키)으로 사용자 확인
     """
     token = None
 
-    # 1. Authorization 헤더에서 토큰 확인
-    if credentials:
-        token = credentials.credentials
-    # 2. HttpOnly 쿠키에서 토큰 확인
-    elif request.cookies.get("access_token"):
+    # 1. Authorization 헤더에서 토큰 확인 (우선순위)
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header[7:]  # "Bearer " 제거
+
+    # 2. HttpOnly 쿠키에서 access_token 확인
+    if not token:
         token = request.cookies.get("access_token")
 
     if not token:
@@ -159,7 +151,18 @@ async def get_current_user(
             status_code=status.HTTP_404_NOT_FOUND, detail="사용자를 찾을 수 없습니다."
         )
 
-    return UserResponse.from_orm(user)
+    return user
+
+
+@router.get("/me", response_model=UserResponse)
+async def get_current_user(
+    current_user: User = Depends(get_current_user_dependency),
+):
+    """
+    현재 로그인한 사용자 정보 조회
+    - JWT 토큰 (Bearer 또는 HttpOnly 쿠키)으로 사용자 확인
+    """
+    return UserResponse.from_orm(current_user)
 
 
 @router.post("/refresh")
@@ -283,7 +286,7 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
         )
         frontend_url = frontend_url.rstrip('/')
 
-        response = RedirectResponse(url=f"{frontend_url}/auth/callback?success=true&access_token={access_token}")
+        response = RedirectResponse(url=f"{frontend_url}/auth/callback?token={access_token}")
 
         # Refresh token을 HttpOnly 쿠키로 설정
         response.set_cookie(
@@ -295,9 +298,7 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
             max_age=30 * 24 * 60 * 60,  # 30일
         )
 
-        return RedirectResponse(
-            url=f"{frontend_url}/auth/callback?token={access_token}"
-        )
+        return response
 
     except OAuthError as e:
         # OAuth 에러 시에도 프론트엔드로 리디렉션
@@ -323,9 +324,3 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
         )
 
 
-# 헤더에서 토큰 추출하는 헬퍼 함수
-async def get_token_from_header(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-) -> str:
-    """Authorization 헤더에서 Bearer 토큰 추출"""
-    return credentials.credentials
