@@ -176,7 +176,7 @@ async def request_process(
         video_request = VideoProcessRequest(
             job_id=job_id,
             video_url=video_url,
-            language=data.language or "auto"  # 없으면 자동 감지
+            language=data.language or "auto",  # 없으면 자동 감지
         )
 
         # 백그라운드에서 EC2 ML 서버에 요청 전송 (DB 세션 전달)

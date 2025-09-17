@@ -93,7 +93,7 @@ async def login(user_data: UserLogin, db: Session = Depends(get_db)):
         content={
             "access_token": access_token,
             "token_type": "bearer",
-            "user": UserResponse.model_validate(user).model_dump(mode='json'),
+            "user": UserResponse.model_validate(user).model_dump(mode="json"),
         }
     )
 
@@ -320,6 +320,7 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
         # 일반 에러 시에도 프론트엔드로 리디렉션
         print(f"General Error in OAuth callback: {str(e)}")
         import traceback
+
         print(f"Traceback: {traceback.format_exc()}")
         error_message = f"Google 로그인 처리 중 오류가 발생했습니다: {str(e)}"
         return RedirectResponse(
