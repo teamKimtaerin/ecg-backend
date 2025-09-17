@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project Overview
+## Project Overview!
 
 ECG Backend is a FastAPI application for Expressive Caption Generation that provides video processing and user authentication services. The project integrates with AWS S3 for file storage, PostgreSQL for data persistence, and includes OAuth authentication through Google. It's designed to work with ML servers for audio/video processing and analysis using Whisper models. The application is containerized with Docker and includes comprehensive CI/CD workflows.
 
@@ -13,6 +13,7 @@ ECG Backend is a FastAPI application for Expressive Caption Generation that prov
 The ECG Backend implements a sophisticated two-phase system for video processing and rendering:
 
 #### Phase 1: Upload & Audio Analysis
+
 ```
 Frontend → API Server → S3 Storage → ML Audio Server → Client
    ↓           ↓            ↓             ↓           ↓
@@ -22,6 +23,7 @@ Request    (+Auth)      (Presigned)   (Async)      (JSON)
 ```
 
 **Process Flow:**
+
 1. **Frontend Upload**: User uploads video file through web interface
 2. **API Processing**: FastAPI validates file, authenticates user, generates S3 presigned URL
 3. **S3 Storage**: Video file stored securely with metadata tracking
@@ -31,6 +33,7 @@ Request    (+Auth)      (Presigned)   (Async)      (JSON)
 7. **Client Response**: Frontend receives processed text data for editor interface
 
 #### Phase 2: Export & GPU Rendering
+
 ```
 Frontend → API Server → GPU Render Server → Client
    ↓           ↓              ↓              ↓
@@ -40,6 +43,7 @@ Request    (+Quotas)     FFmpeg Render     Rendered
 ```
 
 **Process Flow:**
+
 1. **Export Request**: Frontend sends render scenario (edited transcript + styling)
 2. **API Validation**: Authentication, quota checking (daily/monthly/concurrent limits)
 3. **Rate Limiting**: 20 requests/minute per user protection
@@ -50,6 +54,7 @@ Request    (+Quotas)     FFmpeg Render     Rendered
 8. **Download URL**: Secure presigned URL for final video download
 
 #### Phase Connection
+
 - **Upload Results** → **Editor Interface** → **Export Input**
 - Processed transcript data from Phase 1 feeds into the visual editor
 - User edits and styling choices become the scenario input for Phase 2
@@ -58,6 +63,7 @@ Request    (+Quotas)     FFmpeg Render     Rendered
 ## Development Commands
 
 ### Local Development
+
 ```bash
 # Start development server with auto-reload
 uvicorn app.main:app --reload
@@ -74,6 +80,7 @@ cp .env.example .env
 ```
 
 ### Code Quality Tools
+
 ```bash
 # Format code with Black
 python -m black app/
@@ -95,6 +102,7 @@ pytest --maxfail=1 --disable-warnings -q
 ```
 
 ### Database Management
+
 ```bash
 # Database will auto-initialize on FastAPI startup
 # To manually run database initialization:
@@ -108,6 +116,7 @@ python create_jobs_table.py
 ```
 
 ### Docker Development
+
 ```bash
 # Start with Docker Compose (PostgreSQL + Backend)
 docker-compose up
@@ -120,6 +129,7 @@ docker build --target prod --build-arg MODE=prod -t ecg-backend:prod .
 ```
 
 ### Environment Setup
+
 ```bash
 # Create and activate virtual environment
 python -m venv venv
@@ -133,6 +143,7 @@ pip install -r requirements.txt
 ## Architecture
 
 ### Core Application Structure
+
 - **app/main.py**: FastAPI application entry point with startup events for database initialization
 - **app/core/config.py**: Environment configuration management using Pydantic Settings (line 8-70)
 - **app/db/**: Database management layer
@@ -141,6 +152,7 @@ pip install -r requirements.txt
   - **seed_data.py**: Development seed data for testing (includes OAuth users)
 
 ### API Layer (Versioned)
+
 - **app/api/v1/**: Version 1 API endpoints
   - **auth.py**: Authentication endpoints (signup, login, OAuth flows)
   - **video.py**: Video processing endpoints
@@ -150,6 +162,7 @@ pip install -r requirements.txt
 - **Auto-documentation**: Available at `/docs` (Swagger) and `/redoc`
 
 ### Authentication System
+
 - **Dual authentication**: Local email/password + Google OAuth 2.0
 - **JWT-based**: Bearer token authentication with configurable expiration (1440 minutes default)
 - **Models**: User model supports both local and OAuth providers with render quotas
@@ -157,6 +170,7 @@ pip install -r requirements.txt
 - **Session management**: Required for OAuth state handling
 
 ### GPU Rendering System
+
 - **Modular architecture**: Code separated into focused modules for maintainability
 - **app/api/v1/render.py**: Clean API endpoints with JWT authentication and rate limiting (20/minute)
 - **app/services/render_service.py**: Business logic for render job management and quota checking
@@ -167,7 +181,9 @@ pip install -r requirements.txt
 - **app/models/render_usage_stats.py**: Daily and monthly usage statistics tracking
 
 ### ML Server Integration Architecture
+
 The backend is designed to communicate with separate ML analysis servers:
+
 - **Job-based processing**: Send video processing requests with S3 file keys using Job model
 - **Callback pattern**: ML servers POST results back to `/api/upload-video/result`
 - **Async workflow**: Non-blocking video processing with status tracking
@@ -175,6 +191,7 @@ The backend is designed to communicate with separate ML analysis servers:
 - **Status tracking**: Jobs table with UUID primary keys and JSONB result storage
 
 ### Key Technologies
+
 - **FastAPI**: Web framework with automatic OpenAPI generation
 - **SQLAlchemy 2.0**: Modern ORM with async support potential
 - **PostgreSQL**: Primary database with Docker Compose setup
@@ -184,6 +201,7 @@ The backend is designed to communicate with separate ML analysis servers:
 - **AWS S3**: File storage with presigned URL generation
 
 ### Database Architecture
+
 - **Auto-initialization**: Tables created from SQLAlchemy models on startup (app/main.py:16-37)
 - **Conditional init**: Only initializes if not using default local database URL
 - **Jobs table**: UUID-based job tracking with JSONB results and status indexing
@@ -194,7 +212,9 @@ The backend is designed to communicate with separate ML analysis servers:
 - **Health checks**: Database connectivity monitoring in Docker
 
 ### Environment Configuration
+
 Critical environment variables (see app/core/config.py):
+
 - **Database**: PostgreSQL connection settings (Docker Compose or external RDS)
 - **AWS**: S3 credentials, bucket name, region (ap-northeast-2 default)
 - **Authentication**: JWT secrets and Google OAuth credentials
@@ -204,30 +224,36 @@ Critical environment variables (see app/core/config.py):
 - **Debug/Mode**: Development vs production behavior
 
 ### CI/CD Pipeline
+
 - **GitHub Actions**: Automated testing on push/PR to main/dev branches (.github/workflows/ci.yml)
 - **Quality gates**: Black, Ruff, MyPy, Bandit, pytest with early termination
 - **Branch protection**: Configured to require status checks before merge
 - **Auto-fix workflow**: Separate workflow for automated code formatting
 
 ### Pre-commit Integration
+
 Automatic code quality enforcement before commits (.pre-commit-config.yaml):
+
 - **Black**: Code formatting (Python 3.11)
 - **Ruff**: Linting with auto-fix and formatting
 - **MyPy**: Type checking with missing imports ignored
 - **Additional dependencies**: types-all for comprehensive type checking
 
 ### Development Workflow
+
 1. **Database**: Automatically initializes on `docker-compose up` or FastAPI startup
 2. **Seed users**: Test accounts created automatically (see `seed_data.py`)
 3. **API Testing**: Use `/docs` for interactive testing with authentication
 4. **Pre-commit hooks**: Code quality checks before commits (./setup-pre-commit.sh)
 
 ### Authentication Flow
+
 1. **Local Auth**: Email/password → JWT token → Bearer authentication
 2. **OAuth Flow**: Google login → user creation/login → JWT token
 3. **Token Usage**: Include `Authorization: Bearer <token>` header in requests
 
 ### GPU Rendering Integration
+
 - **External GPU Server**: Communicates with independent GPU render server on port 8090
 - **Callback architecture**: Async rendering with progress callbacks to `/api/render/callback`
 - **User quotas**: Daily, monthly, and concurrent rendering limits per user
