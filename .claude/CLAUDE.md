@@ -1,4 +1,4 @@
-# CLAUDE.md
+# CLAUDE.md!
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
@@ -9,6 +9,7 @@ This is the backend for an Expressive Caption Generator application built with F
 ## Commands
 
 ### Development Server
+
 ```bash
 # Start development server with auto-reload
 uvicorn app.main:app --reload
@@ -18,6 +19,7 @@ uvicorn app.main:app --reload --port 8080
 ```
 
 ### Docker Development
+
 ```bash
 # Start with Docker Compose (PostgreSQL + Backend)
 docker-compose up
@@ -30,6 +32,7 @@ docker build --target prod --build-arg MODE=prod -t ecg-backend:prod .
 ```
 
 ### Code Quality Tools
+
 ```bash
 # Format code with Black
 python -m black app/
@@ -48,6 +51,7 @@ pytest --maxfail=1 --disable-warnings -q
 ```
 
 ### Database Management
+
 ```bash
 # Database will auto-initialize on FastAPI startup
 # To manually run database initialization:
@@ -58,6 +62,7 @@ python -c "from app.db.seed_data import create_seed_data; create_seed_data()"
 ```
 
 ### Environment Setup
+
 ```bash
 # Create and activate virtual environment
 python -m venv venv
@@ -75,6 +80,7 @@ cp .env.example .env
 ## Architecture
 
 ### Core Application Structure
+
 - **app/main.py**: FastAPI application entry point with startup events for database initialization
 - **app/core/config.py**: Environment configuration management using Pydantic Settings
 - **app/db/**: Database management layer
@@ -83,6 +89,7 @@ cp .env.example .env
   - **seed_data.py**: Development seed data for testing (includes OAuth users)
 
 ### Authentication System
+
 - **Dual authentication**: Local email/password + Google OAuth 2.0
 - **JWT-based**: Bearer token authentication with configurable expiration
 - **Models**: User model supports both local and OAuth providers
@@ -90,12 +97,14 @@ cp .env.example .env
 - **Session management**: Required for OAuth state handling
 
 ### API Layer (Versioned)
+
 - **app/api/v1/**: Version 1 API endpoints
   - **auth.py**: Authentication endpoints (signup, login, OAuth flows)
   - **routers.py**: Router registration and configuration
 - **Auto-documentation**: Available at `/docs` (Swagger) and `/redoc`
 
 ### Key Technologies
+
 - **FastAPI**: Web framework with automatic OpenAPI generation
 - **SQLAlchemy 2.0**: Modern ORM with async support potential
 - **PostgreSQL**: Primary database with Docker Compose setup
@@ -105,38 +114,45 @@ cp .env.example .env
 - **Docker**: Multi-stage builds (dev/prod) with health checks
 
 ### Database Architecture
+
 - **Auto-initialization**: Tables created from SQLAlchemy models on startup
 - **Seed data**: Automatic test user creation for development
 - **Connection pooling**: Configured for production scalability
 - **Health checks**: Database connectivity monitoring in Docker
 
 ### CI/CD Pipeline
-- **GitHub Actions**: Automated testing on push/PR to main/dev branches  
+
+- **GitHub Actions**: Automated testing on push/PR to main/dev branches
 - **Quality gates**: Black, Ruff, MyPy, Bandit, pytest
 - **Branch protection**: Configured to require status checks before merge
 
 ## Important Configuration
 
 ### Environment Variables (.env file)
+
 - **Database**: PostgreSQL connection settings (Docker Compose or external)
-- **Authentication**: JWT secrets and Google OAuth credentials  
+- **Authentication**: JWT secrets and Google OAuth credentials
 - **AWS S3**: File storage configuration (access keys, bucket, region)
 - **CORS**: Frontend URL allowlist
 - **Debug/Mode**: Development vs production behavior
 
 ### Authentication Flow
+
 1. **Local Auth**: Email/password → JWT token → Bearer authentication
-2. **OAuth Flow**: Google login → user creation/login → JWT token  
+2. **OAuth Flow**: Google login → user creation/login → JWT token
 3. **Token Usage**: Include `Authorization: Bearer <token>` header in requests
 
 ### Development Workflow
+
 1. **Database**: Automatically initializes on `docker-compose up` or FastAPI startup
 2. **Seed users**: Test accounts created automatically (see `seed_data.py`)
 3. **API Testing**: Use `/docs` for interactive testing with authentication
 4. **Pre-commit hooks**: Code quality checks before commits (optional)
 
 ### ML Server Integration Design
+
 The backend is designed to communicate with separate ML analysis servers:
+
 - **Job-based processing**: Send video processing requests with S3 file keys
-- **Callback pattern**: ML servers POST results back to `/api/v1/ml-results`  
+- **Callback pattern**: ML servers POST results back to `/api/v1/ml-results`
 - **Async workflow**: Non-blocking video processing with status tracking
