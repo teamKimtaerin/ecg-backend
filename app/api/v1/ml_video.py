@@ -15,7 +15,6 @@ import logging
 import aiohttp
 import hashlib
 import hmac
-import os
 from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.services.job_service import JobService
@@ -471,6 +470,76 @@ async def get_job_status(job_id: str, db: Session = Depends(get_db)):
         return response
 
 
+@router.get("/ml-server/health")
+async def check_ml_server_health():
+    """
+    ML 서버 상태 확인 엔드포인트
+    - ML 서버 연결 상태 확인
+    - 응답 시간 측정
+    - 상세한 진단 정보 제공
+    """
+    try:
+        import time
+
+        ml_api_url = MODEL_SERVER_URL
+        timeout = 10  # 헬스체크용 짧은 타임아웃
+
+        logger.info(f"ML 서버 헬스체크 시작 - URL: {ml_api_url}")
+
+        start_time = time.time()
+        timeout_config = aiohttp.ClientTimeout(total=timeout)
+
+        async with aiohttp.ClientSession(timeout=timeout_config) as session:
+            try:
+                # 헬스체크 엔드포인트 시도
+                async with session.get(f"{ml_api_url}/health") as response:
+                    response_time = time.time() - start_time
+
+                    if response.status == 200:
+                        result = await response.text()
+                        return {
+                            "status": "healthy",
+                            "ml_server_url": ml_api_url,
+                            "response_time_ms": round(response_time * 1000, 2),
+                            "http_status": response.status,
+                            "response": result[:200],  # 첫 200자만 표시
+                        }
+                    else:
+                        return {
+                            "status": "unhealthy",
+                            "ml_server_url": ml_api_url,
+                            "response_time_ms": round(response_time * 1000, 2),
+                            "http_status": response.status,
+                            "error": "Non-200 status code",
+                        }
+            except aiohttp.ClientConnectorError as e:
+                response_time = time.time() - start_time
+                return {
+                    "status": "connection_failed",
+                    "ml_server_url": ml_api_url,
+                    "response_time_ms": round(response_time * 1000, 2),
+                    "error": str(e),
+                    "suggestion": "ML 서버가 실행 중인지 확인하세요",
+                }
+            except asyncio.TimeoutError:
+                response_time = time.time() - start_time
+                return {
+                    "status": "timeout",
+                    "ml_server_url": ml_api_url,
+                    "response_time_ms": round(response_time * 1000, 2),
+                    "timeout_seconds": timeout,
+                    "error": "Health check timeout",
+                }
+
+    except Exception as e:
+        return {
+            "status": "error",
+            "ml_server_url": MODEL_SERVER_URL,
+            "error": str(e),
+            "message": "헬스체크 중 예외 발생",
+        }
+
+
 # /jobs 엔드포인트 제거됨 - 보안상 위험하므로 삭제
 # 모든 작업 목록 조회는 관리자 대시보드에서만 가능하도록 변경
 
@@ -541,7 +610,11 @@ async def handle_processing_error(job_id: str, error_message: str):
 
 # ML 서버에 요청 전송 함수 (콜백 기반)
 async def _send_request_to_ml_server(
-    job_id: str, payload: Dict[str, Any], db_session=None
+    job_id: str,
+    payload: Dict[str, Any],
+    db_session=None,
+    retry_count: int = 0,
+    max_retries: int = 2,
 ) -> None:
     """EC2 ML 서버에 처리 요청만 전송 (결과는 콜백으로 받음)"""
 
@@ -562,11 +635,20 @@ async def _send_request_to_ml_server(
             "max_workers": payload.get("max_workers", 4),
         }
 
-        logger.info(f"ML 서버 요청 전송 시작 - Job ID: {job_id}, URL: {ml_api_url}")
-        logger.debug(f"요청 데이터: {api_payload}")
+        if retry_count > 0:
+            logger.info(
+                f"ML 서버 요청 재시도 {retry_count}/{max_retries} - Job ID: {job_id}, URL: {ml_api_url}"
+            )
+        else:
+            logger.info(f"ML 서버 요청 전송 시작 - Job ID: {job_id}, URL: {ml_api_url}")
+
+        logger.info(f"요청 데이터: {api_payload}")
+        logger.info(f"타임아웃 설정: {timeout}초")
 
         # ML 서버에 처리 요청만 전송
         timeout_config = aiohttp.ClientTimeout(total=timeout)
+
+        request_start_time = asyncio.get_event_loop().time()
 
         async with aiohttp.ClientSession(timeout=timeout_config) as session:
             async with session.post(
@@ -577,11 +659,33 @@ async def _send_request_to_ml_server(
                     "User-Agent": "ECS-FastAPI-Backend/1.0",
                 },
             ) as response:
+                request_duration = asyncio.get_event_loop().time() - request_start_time
+                logger.info(f"ML 서버 응답 시간: {request_duration:.2f}초 - Job ID: {job_id}")
+
                 if response.status == 200:
                     result = await response.json()
-                    logger.info(
-                        f"ML 서버 요청 접수 성공 - Job ID: {job_id}, Response: {result}"
-                    )
+
+                    # 테스트/목 데이터 감지
+                    if isinstance(result.get("result"), dict):
+                        transcript = result["result"].get("transcript", "")
+                        if "[테스트]" in transcript or "테스트 결과" in transcript:
+                            logger.warning(
+                                f"⚠️ ML 서버가 테스트 데이터를 반환했습니다 - Job ID: {job_id}"
+                            )
+                            logger.warning(f"반환된 테스트 데이터: {transcript}")
+                            logger.warning(
+                                f"실제 처리 시간: {request_duration:.2f}초 (예상: 20-30초)"
+                            )
+
+                    logger.info(f"ML 서버 요청 접수 성공 - Job ID: {job_id}")
+                    logger.info(f"응답 상태: {result.get('status', 'unknown')}")
+                    if "result" in result:
+                        logger.info(
+                            f"결과 포함 여부: True, 스크립트 길이: {len(str(result['result']))}"
+                        )
+                    else:
+                        logger.info("결과 포함 여부: False")
+
                     # estimated_time 처리 (선택적)
                     if "estimated_time" in result:
                         logger.info(f"ML 서버 예상 처리 시간: {result['estimated_time']}초")
@@ -610,7 +714,9 @@ async def _send_request_to_ml_server(
 
     except asyncio.TimeoutError:
         error_message = f"ML 서버 처리 타임아웃 ({timeout}초)"
-        logger.error(f"ML 서버 요청 타임아웃 - Job ID: {job_id}")
+        logger.error(f"🔴 ML 서버 요청 타임아웃 - Job ID: {job_id}")
+        logger.error(f"ML 서버 URL: {ml_api_url}")
+        logger.error(f"설정된 타임아웃: {timeout}초")
 
         # 데이터베이스 업데이트 (가능한 경우)
         if db_session:
@@ -622,7 +728,19 @@ async def _send_request_to_ml_server(
 
     except aiohttp.ClientConnectorError as e:
         error_message = f"ML 서버 연결 실패: {str(e)}"
-        logger.error(f"ML 서버 연결 실패 - Job ID: {job_id}, Error: {str(e)}")
+        logger.error(f"🔴 ML 서버 연결 실패 - Job ID: {job_id}")
+        logger.error(f"ML 서버 URL: {ml_api_url}")
+        logger.error(f"연결 에러 상세: {str(e)}")
+        logger.error("ML 서버가 실행 중인지 확인이 필요합니다")
+
+        # 재시도 로직
+        if retry_count < max_retries:
+            wait_time = (retry_count + 1) * 5  # 5초, 10초, 15초 대기
+            logger.info(f"🔄 {wait_time}초 후 재시도합니다... ({retry_count + 1}/{max_retries})")
+            await asyncio.sleep(wait_time)
+            return await _send_request_to_ml_server(
+                job_id, payload, db_session, retry_count + 1, max_retries
+            )
 
         # 데이터베이스 업데이트 (가능한 경우)
         if db_session:

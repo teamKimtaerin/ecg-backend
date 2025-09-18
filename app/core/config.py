@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     )
 
     ml_api_server_url: str = Field(
-        default="http://10.0.10.42:8001", description="ML API server URL"
+        default="http://54.237.160.54:8080", description="ML API server URL"
     )
 
     ML_API_TIMEOUT: int = Field(
