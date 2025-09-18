@@ -155,7 +155,6 @@ app.add_middleware(
     https_only=False,  # CloudFront 내부 HTTP 프록시 허용
     max_age=3600,  # 1시간
     session_cookie="session",  # 명시적 쿠키 이름
-    domain=None,  # 도메인 제한 없음으로 CloudFront와 실제 도메인 간 호환성 확보
 )
 
 # CORS 설정 - 환경변수에서 허용된 origins 읽기

@@ -3,7 +3,7 @@ from fastapi.responses import RedirectResponse, JSONResponse
 from sqlalchemy.orm import Session
 from authlib.integrations.base_client.errors import OAuthError
 from app.db.database import get_db
-from app.schemas.user import UserCreate, UserLogin, UserResponse, Token
+from app.schemas.user import UserCreate, UserLogin, UserResponse
 from app.services.auth_service import auth_service, oauth
 from app.models.user import User, AuthProvider
 from app.core.config import settings
