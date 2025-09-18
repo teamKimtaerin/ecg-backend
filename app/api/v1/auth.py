@@ -181,7 +181,9 @@ async def refresh_token(request: Request, db: Session = Depends(get_db)):
         )
 
     # Refresh token 검증
-    payload = auth_service.verify_token(refresh_token, token_type="refresh")
+    payload = auth_service.verify_token(
+        refresh_token, token_type="refresh"
+    )  # nosec B106
     if not payload:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

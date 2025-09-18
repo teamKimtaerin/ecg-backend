@@ -169,7 +169,19 @@ default_origins = [
 # 환경변수가 있으면 그것을 사용, 없으면 기본값 사용
 cors_origins_env = os.getenv("CORS_ORIGINS", "")
 if cors_origins_env:
-    cors_origins = cors_origins_env.split(",")
+    # Strip whitespace and filter empty strings
+    cors_origins = [
+        origin.strip() for origin in cors_origins_env.split(",") if origin.strip()
+    ]
+    # Additional validation to remove any malformed entries
+    cors_origins = [
+        origin for origin in cors_origins if origin.startswith(("http://", "https://"))
+    ]
+    if not cors_origins:
+        logger.warning(
+            "No valid CORS origins found in environment variable, using defaults"
+        )
+        cors_origins = default_origins
 else:
     cors_origins = default_origins
 

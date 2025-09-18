@@ -70,7 +70,9 @@ class AuthService:
         return access_token, refresh_token
 
     @staticmethod
-    def verify_token(token: str, token_type: str = "access") -> Optional[dict]:
+    def verify_token(
+        token: str, token_type: str = "access"
+    ) -> Optional[dict]:  # nosec B107
         """JWT 토큰 검증"""
         try:
             payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[ALGORITHM])
