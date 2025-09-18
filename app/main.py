@@ -29,7 +29,9 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         start_time = time.time()
 
         # 요청 정보 로깅 (특히 OAuth 콜백 관련)
-        client_ip = request.headers.get("x-forwarded-for", request.client.host if request.client else "unknown")
+        client_ip = request.headers.get(
+            "x-forwarded-for", request.client.host if request.client else "unknown"
+        )
         user_agent = request.headers.get("user-agent", "unknown")
 
         if "/api/auth/google" in str(request.url):
@@ -44,7 +46,9 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             process_time = time.time() - start_time
 
             if "/api/auth/google" in str(request.url):
-                logger.info(f"🟢 OAuth Response: {response.status_code} - {process_time:.3f}s")
+                logger.info(
+                    f"🟢 OAuth Response: {response.status_code} - {process_time:.3f}s"
+                )
 
             return response
         except Exception as e:
@@ -54,6 +58,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                 logger.error(f"🔴 OAuth Error: {str(e)} - {process_time:.3f}s")
                 logger.error(f"🔴 Exception type: {type(e)}")
                 import traceback
+
                 logger.error(f"🔴 Traceback: {traceback.format_exc()}")
 
             raise
@@ -119,6 +124,7 @@ async def startup_event():
 # 요청 로깅 미들웨어 추가 (가장 먼저)
 app.add_middleware(RequestLoggingMiddleware)
 
+
 # CloudFront 프록시 환경에서의 OAuth 세션 처리를 위한 미들웨어
 class CloudFrontProxyMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
@@ -136,6 +142,7 @@ class CloudFrontProxyMiddleware(BaseHTTPMiddleware):
 
         response = await call_next(request)
         return response
+
 
 # CloudFront 프록시 미들웨어 추가
 app.add_middleware(CloudFrontProxyMiddleware)

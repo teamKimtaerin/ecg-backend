@@ -276,7 +276,9 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
 
         # CloudFront 도메인인 경우 실제 설정된 URI로 대체
         if "cloudfront.net" in current_host and "ho-it.site" in original_redirect_uri:
-            print(f"CloudFront callback detected. Using configured redirect_uri: {original_redirect_uri}")
+            print(
+                f"CloudFront callback detected. Using configured redirect_uri: {original_redirect_uri}"
+            )
 
         token = await google.authorize_access_token(request)
 
