@@ -141,6 +141,19 @@ class CloudFrontProxyMiddleware(BaseHTTPMiddleware):
                 request._url = new_url
 
         response = await call_next(request)
+
+        # OAuth 관련 요청에서 세션 쿠키 도메인 설정
+        if "/api/auth/google" in str(request.url) and settings.domain:
+            set_cookie_header = response.headers.get("set-cookie")
+            if set_cookie_header and "session=" in set_cookie_header:
+                # 기존 쿠키에서 도메인 설정 추가/수정
+                if f"Domain={settings.domain}" not in set_cookie_header:
+                    # Domain 파라미터가 없으면 추가
+                    new_cookie = set_cookie_header.replace(
+                        "samesite=none", f"Domain={settings.domain}; samesite=none"
+                    )
+                    response.headers["set-cookie"] = new_cookie
+
         return response
 
 
@@ -155,7 +168,6 @@ app.add_middleware(
     https_only=True,  # SameSite=None은 Secure=True와 함께 사용해야 함
     max_age=3600,  # 1시간
     session_cookie="session",  # 명시적 쿠키 이름
-    domain=settings.domain,  # 환경변수에서 도메인 설정
 )
 
 # CORS 설정 - 환경변수에서 허용된 origins 읽기
