@@ -119,13 +119,36 @@ async def startup_event():
 # 요청 로깅 미들웨어 추가 (가장 먼저)
 app.add_middleware(RequestLoggingMiddleware)
 
-# 세션 미들웨어 추가 (OAuth에 필요)
+# CloudFront 프록시 환경에서의 OAuth 세션 처리를 위한 미들웨어
+class CloudFrontProxyMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        # CloudFront 프록시 헤더 정보를 사용해 실제 스키마와 호스트 설정
+        if "cloudfront" in request.headers.get("via", "").lower():
+            # CloudFront를 통한 요청인 경우
+            forwarded_proto = request.headers.get("x-forwarded-proto", "https")
+            forwarded_host = request.headers.get("host", "")
+
+            # URL을 재구성하여 올바른 스키마 사용
+            if forwarded_proto == "http" and "cloudfront.net" in forwarded_host:
+                # CloudFront에서 오는 HTTP 요청을 HTTPS로 처리
+                new_url = str(request.url).replace("http://", "https://")
+                request._url = new_url
+
+        response = await call_next(request)
+        return response
+
+# CloudFront 프록시 미들웨어 추가
+app.add_middleware(CloudFrontProxyMiddleware)
+
+# 세션 미들웨어 추가 (OAuth에 필요) - CloudFront 환경 최적화
 app.add_middleware(
     SessionMiddleware,
     secret_key=settings.secret_key,
-    same_site="lax",  # Cross-origin 요청 허용
-    https_only=False,  # 개발환경 고려
+    same_site="none",  # CloudFront 크로스 도메인 허용
+    https_only=False,  # CloudFront 내부 HTTP 프록시 허용
     max_age=3600,  # 1시간
+    session_cookie="session",  # 명시적 쿠키 이름
+    domain=None,  # 도메인 제한 없음으로 CloudFront와 실제 도메인 간 호환성 확보
 )
 
 # CORS 설정 - 환경변수에서 허용된 origins 읽기

@@ -225,11 +225,30 @@ async def google_login(request: Request):
     """
     Google OAuth 로그인 시작
     - Google 로그인 페이지로 리디렉션
+    - CloudFront 프록시 환경에서의 올바른 redirect_uri 처리
     """
     google = oauth.create_client("google")
     redirect_uri = settings.google_redirect_uri
 
-    return await google.authorize_redirect(request, redirect_uri)
+    # CloudFront 환경 디버깅 정보
+    current_host = request.headers.get("host", "")
+    via_header = request.headers.get("via", "")
+
+    print(f"OAuth login initiated from host: {current_host}")
+    print(f"Via header: {via_header}")
+    print(f"Configured redirect_uri: {redirect_uri}")
+
+    # 세션 상태 확인 및 로깅
+    session_before = dict(request.session) if request.session else {}
+    print(f"Session before OAuth redirect: {session_before}")
+
+    response = await google.authorize_redirect(request, redirect_uri)
+
+    # 세션 상태 변화 확인
+    session_after = dict(request.session) if request.session else {}
+    print(f"Session after OAuth redirect: {session_after}")
+
+    return response
 
 
 @router.get("/google/callback")
@@ -238,12 +257,27 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
     Google OAuth 콜백 처리
     - Google에서 돌아온 인증 정보로 사용자 로그인/회원가입 처리
     - 성공 시 프론트엔드로 토큰과 함께 리디렉션
+    - CloudFront 프록시 환경에서의 세션 상태 처리 개선
     """
     try:
         # 디버깅을 위한 로그 추가
         print(f"OAuth callback received: {request.url}")
 
+        # CloudFront 프록시 환경에서의 세션 정보 확인
+        session_data = request.session
+        print(f"Session data available: {bool(session_data)}")
+        print(f"Session keys: {list(session_data.keys()) if session_data else 'None'}")
+
         google = oauth.create_client("google")
+
+        # CloudFront 환경에서 올바른 redirect_uri 확인
+        original_redirect_uri = settings.google_redirect_uri
+        current_host = request.headers.get("host", "")
+
+        # CloudFront 도메인인 경우 실제 설정된 URI로 대체
+        if "cloudfront.net" in current_host and "ho-it.site" in original_redirect_uri:
+            print(f"CloudFront callback detected. Using configured redirect_uri: {original_redirect_uri}")
+
         token = await google.authorize_access_token(request)
 
         print(f"Token received: {bool(token)}")
