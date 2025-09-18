@@ -110,6 +110,18 @@ class Settings(BaseSettings):
     google_client_secret: str = Field(..., description="Google OAuth client secret")
     google_redirect_uri: str = Field(..., description="Google OAuth redirect URI")
 
+    # YouTube API Settings
+    youtube_api_key: str = Field(
+        default="", description="YouTube Data API v3 key"
+    )
+    youtube_redirect_uri: str = Field(
+        default="http://localhost:8000/api/youtube/callback",
+        description="YouTube OAuth redirect URI"
+    )
+    youtube_quota_limit: int = Field(
+        default=10000, description="Daily YouTube API quota limit"
+    )
+
     # Frontend URL Settings
     frontend_url: str = Field(
         default="http://localhost:3000",
