@@ -116,6 +116,12 @@ class Settings(BaseSettings):
         description="Frontend application URL for OAuth redirects",
     )
 
+    # Session Cookie Domain Settings
+    domain: str = Field(
+        default=None,
+        description="Session cookie domain for OAuth (e.g., ho-it.site)",
+    )
+
     class Config:
         env_file = ".env"
         case_sensitive = False

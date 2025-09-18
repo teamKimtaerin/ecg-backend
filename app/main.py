@@ -152,9 +152,10 @@ app.add_middleware(
     SessionMiddleware,
     secret_key=settings.secret_key,
     same_site="none",  # CloudFront 크로스 도메인 허용
-    https_only=False,  # CloudFront 내부 HTTP 프록시 허용
+    https_only=True,  # SameSite=None은 Secure=True와 함께 사용해야 함
     max_age=3600,  # 1시간
     session_cookie="session",  # 명시적 쿠키 이름
+    domain=settings.domain,  # 환경변수에서 도메인 설정
 )
 
 # CORS 설정 - 환경변수에서 허용된 origins 읽기
@@ -162,8 +163,7 @@ default_origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     # Production domains
-    "https://ecg-frontend.vercel.app",
-    "https://ecg-project.com",
+    "https://ho-it.site"
 ]
 
 # 환경변수가 있으면 그것을 사용, 없으면 기본값 사용
