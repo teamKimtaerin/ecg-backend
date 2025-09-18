@@ -1,6 +1,7 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -8,6 +9,7 @@ from app.api.v1.routers import api_router
 from app.core.config import settings
 import os
 import logging
+import time
 
 app = FastAPI(title="ECG Backend API", version="1.0.0")
 
@@ -19,6 +21,42 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # 로깅 설정
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+# 요청 로깅 미들웨어
+class RequestLoggingMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        start_time = time.time()
+
+        # 요청 정보 로깅 (특히 OAuth 콜백 관련)
+        client_ip = request.headers.get("x-forwarded-for", request.client.host if request.client else "unknown")
+        user_agent = request.headers.get("user-agent", "unknown")
+
+        if "/api/auth/google" in str(request.url):
+            logger.info(f"🔵 OAuth Request: {request.method} {request.url}")
+            logger.info(f"🔵 Client IP: {client_ip}")
+            logger.info(f"🔵 User-Agent: {user_agent}")
+            logger.info(f"🔵 Headers: {dict(request.headers)}")
+
+        # 응답 처리
+        try:
+            response = await call_next(request)
+            process_time = time.time() - start_time
+
+            if "/api/auth/google" in str(request.url):
+                logger.info(f"🟢 OAuth Response: {response.status_code} - {process_time:.3f}s")
+
+            return response
+        except Exception as e:
+            process_time = time.time() - start_time
+
+            if "/api/auth/google" in str(request.url):
+                logger.error(f"🔴 OAuth Error: {str(e)} - {process_time:.3f}s")
+                logger.error(f"🔴 Exception type: {type(e)}")
+                import traceback
+                logger.error(f"🔴 Traceback: {traceback.format_exc()}")
+
+            raise
 
 
 @app.on_event("startup")
@@ -78,8 +116,40 @@ async def startup_event():
             db.close()
 
 
-# 세션 미들웨어 추가 (OAuth에 필요)
-app.add_middleware(SessionMiddleware, secret_key=settings.secret_key)
+# 요청 로깅 미들웨어 추가 (가장 먼저)
+app.add_middleware(RequestLoggingMiddleware)
+
+# CloudFront 프록시 환경에서의 OAuth 세션 처리를 위한 미들웨어
+class CloudFrontProxyMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        # CloudFront 프록시 헤더 정보를 사용해 실제 스키마와 호스트 설정
+        if "cloudfront" in request.headers.get("via", "").lower():
+            # CloudFront를 통한 요청인 경우
+            forwarded_proto = request.headers.get("x-forwarded-proto", "https")
+            forwarded_host = request.headers.get("host", "")
+
+            # URL을 재구성하여 올바른 스키마 사용
+            if forwarded_proto == "http" and "cloudfront.net" in forwarded_host:
+                # CloudFront에서 오는 HTTP 요청을 HTTPS로 처리
+                new_url = str(request.url).replace("http://", "https://")
+                request._url = new_url
+
+        response = await call_next(request)
+        return response
+
+# CloudFront 프록시 미들웨어 추가
+app.add_middleware(CloudFrontProxyMiddleware)
+
+# 세션 미들웨어 추가 (OAuth에 필요) - CloudFront 환경 최적화
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.secret_key,
+    same_site="none",  # CloudFront 크로스 도메인 허용
+    https_only=False,  # CloudFront 내부 HTTP 프록시 허용
+    max_age=3600,  # 1시간
+    session_cookie="session",  # 명시적 쿠키 이름
+    domain=None,  # 도메인 제한 없음으로 CloudFront와 실제 도메인 간 호환성 확보
+)
 
 # CORS 설정 - 환경변수에서 허용된 origins 읽기
 default_origins = [
