@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from pydantic import BaseModel, ValidationError
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Union
 from enum import Enum
 import asyncio
 import logging
@@ -43,6 +43,47 @@ def verify_hmac_signature(request_body: bytes, signature: str, secret_key: str) 
     except Exception as e:
         logger.error(f"HMAC verification failed: {str(e)}")
         return False
+
+
+def normalize_timestamp_fields(data: Union[Dict[str, Any], Any]) -> Union[Dict[str, Any], Any]:
+    """
+    ML 서버와 WhisperX의 서로 다른 타임스탬프 필드명을 통일
+
+    ML 서버: start_time, end_time
+    WhisperX/Backend: start, end
+
+    모든 타임스탬프 필드를 start, end로 통일
+    """
+    if isinstance(data, dict):
+        # start_time -> start 변환
+        if "start_time" in data and "start" not in data:
+            data["start"] = data.pop("start_time")
+        elif "start_time" in data:
+            # 둘 다 있으면 start_time 제거
+            data.pop("start_time")
+
+        # end_time -> end 변환
+        if "end_time" in data and "end" not in data:
+            data["end"] = data.pop("end_time")
+        elif "end_time" in data:
+            # 둘 다 있으면 end_time 제거
+            data.pop("end_time")
+
+        # 중첩된 구조 재귀 처리
+        for key, value in data.items():
+            if isinstance(value, list):
+                for item in value:
+                    if isinstance(item, (dict, list)):
+                        normalize_timestamp_fields(item)
+            elif isinstance(value, dict):
+                normalize_timestamp_fields(value)
+
+    elif isinstance(data, list):
+        for item in data:
+            if isinstance(item, (dict, list)):
+                normalize_timestamp_fields(item)
+
+    return data
 
 
 # Pydantic 모델들
@@ -324,6 +365,15 @@ async def receive_ml_results(
             f"ML 결과 수신 - Job ID: {job_id}, Status: {ml_result.status}, "
             f"Progress: {ml_result.progress}, Client: {client_ip}"
         )
+        # ML 서버 결과 데이터의 타임스탬프 필드명 정규화
+        if ml_result.result:
+            try:
+                ml_result.result = normalize_timestamp_fields(ml_result.result)
+                logger.debug(f"타임스탬프 필드 정규화 완료 - Job ID: {job_id}")
+            except Exception as e:
+                logger.warning(
+                    f"타임스탬프 필드 정규화 실패 - Job ID: {job_id}, Error: {str(e)}"
+                )
 
         # PostgreSQL에서 작업 상태 업데이트
         job_service = JobService(db)
