@@ -45,7 +45,9 @@ def verify_hmac_signature(request_body: bytes, signature: str, secret_key: str) 
         return False
 
 
-def normalize_timestamp_fields(data: Union[Dict[str, Any], Any]) -> Union[Dict[str, Any], Any]:
+def normalize_timestamp_fields(
+    data: Union[Dict[str, Any], Any]
+) -> Union[Dict[str, Any], Any]:
     """
     ML 서버와 WhisperX의 서로 다른 타임스탬프 필드명을 통일
 
@@ -371,9 +373,7 @@ async def receive_ml_results(
                 ml_result.result = normalize_timestamp_fields(ml_result.result)
                 logger.debug(f"타임스탬프 필드 정규화 완료 - Job ID: {job_id}")
             except Exception as e:
-                logger.warning(
-                    f"타임스탬프 필드 정규화 실패 - Job ID: {job_id}, Error: {str(e)}"
-                )
+                logger.warning(f"타임스탬프 필드 정규화 실패 - Job ID: {job_id}, Error: {str(e)}")
 
         # PostgreSQL에서 작업 상태 업데이트
         job_service = JobService(db)
