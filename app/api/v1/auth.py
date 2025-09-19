@@ -51,9 +51,9 @@ async def signup(user_data: UserCreate, db: Session = Depends(get_db)):
     response.set_cookie(
         key="refresh_token",
         value=refresh_token,
-        domain=settings.domain,
+        domain=settings.domain if settings.domain else None,
         httponly=True,
-        secure=True,
+        secure=bool(settings.domain),  # 프로덕션(DOMAIN 설정시)에서만 secure=True
         samesite="lax",
         max_age=30 * 24 * 60 * 60,  # 30일
     )
@@ -102,9 +102,9 @@ async def login(user_data: UserLogin, db: Session = Depends(get_db)):
     response.set_cookie(
         key="refresh_token",
         value=refresh_token,
-        domain=settings.domain,
+        domain=settings.domain if settings.domain else None,
         httponly=True,
-        secure=True,
+        secure=bool(settings.domain),  # 프로덕션(DOMAIN 설정시)에서만 secure=True
         samesite="lax",
         max_age=30 * 24 * 60 * 60,  # 30일
     )
@@ -220,8 +220,12 @@ async def logout():
     로그아웃 - refresh token 쿠키 삭제
     """
     response = JSONResponse(content={"message": "로그아웃 되었습니다."})
-    response.delete_cookie(key="refresh_token", domain=settings.domain)
-    response.delete_cookie(key="access_token", domain=settings.domain)
+
+    # 쿠키 삭제시도 도메인 설정
+    cookie_domain = settings.domain if settings.domain else None
+
+    response.delete_cookie(key="refresh_token", domain=cookie_domain)
+    response.delete_cookie(key="access_token", domain=cookie_domain)
     return response
 
 
@@ -328,13 +332,17 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
             url=f"{settings.frontend_url}/auth/callback?success=true"
         )
 
+        # 쿠키 설정 결정: DOMAIN이 설정되어 있으면 프로덕션 환경
+        is_production = bool(settings.domain)
+        cookie_domain = settings.domain if is_production else None
+
         # Access token을 HttpOnly 쿠키로 설정 (보안 강화)
         response.set_cookie(
             key="access_token",
             value=access_token,
-            domain=settings.domain,
+            domain=cookie_domain,
             httponly=True,
-            secure=True,
+            secure=is_production,  # 프로덕션(DOMAIN 설정시)에서만 secure=True
             samesite="lax",
             max_age=24 * 60 * 60,  # 24시간
         )
@@ -343,9 +351,9 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
         response.set_cookie(
             key="refresh_token",
             value=refresh_token,
-            domain=settings.domain,
+            domain=cookie_domain,
             httponly=True,
-            secure=True,
+            secure=is_production,  # 프로덕션(DOMAIN 설정시)에서만 secure=True
             samesite="lax",
             max_age=30 * 24 * 60 * 60,  # 30일
         )
