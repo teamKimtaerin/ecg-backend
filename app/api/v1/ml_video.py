@@ -601,15 +601,12 @@ async def trigger_ml_server(job_id: str, request: VideoProcessRequest, db_sessio
     try:
         logger.info(f"ML 서버에 요청 전송 - Job ID: {job_id}")
 
-        # ML 서버로 전송할 페이로드 구성 (Backend Server 통합 가이드에 따라 확장)
+        # ML 서버로 전송할 페이로드 구성 (필수 파라미터만)
         payload = {
             "job_id": job_id,
             "video_url": request.video_url,
             "fastapi_base_url": FASTAPI_BASE_URL,  # 동적 콜백 URL 제공
-            "enable_gpu": True,  # GPU 사용 여부
-            "emotion_detection": True,  # 감정 분석 여부
             "language": request.language,  # 언어 설정 (frontend에서 지정 또는 auto)
-            "max_workers": 4,  # 최대 워커 수
         }
 
         # EC2 ML 서버에 비동기 요청 전송 (콜백 기반)
@@ -674,15 +671,12 @@ async def _send_request_to_ml_server(
         ml_api_url = MODEL_SERVER_URL  # settings에서 가져온 ML 서버 URL 사용
         timeout = float(ML_API_TIMEOUT)  # settings에서 가져온 타임아웃 사용
 
-        # ML_API.md 명세에 따른 요청 페이로드 (확장된 파라미터 포함)
+        # ML_API.md 명세에 따른 요청 페이로드 (필수 파라미터만)
         api_payload = {
             "job_id": job_id,
             "video_url": payload.get("video_url"),
             "fastapi_base_url": payload.get("fastapi_base_url"),
             "language": payload.get("language", "auto"),  # Frontend 지정 언어 또는 자동 감지
-            "enable_gpu": payload.get("enable_gpu", True),
-            "emotion_detection": payload.get("emotion_detection", True),
-            "max_workers": payload.get("max_workers", 4),
         }
 
         if retry_count > 0:

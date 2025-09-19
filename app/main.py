@@ -89,6 +89,8 @@ async def startup_event():
     try:
         from app.db.database import get_db
         from app.models.job import Job, JobStatus
+        from app.models.render_job import RenderJob
+        from app.models.render_usage_stats import RenderUsageStats
         from datetime import datetime, timedelta
 
         db = next(get_db())
