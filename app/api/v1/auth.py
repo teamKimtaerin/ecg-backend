@@ -47,10 +47,9 @@ async def signup(user_data: UserCreate, db: Session = Depends(get_db)):
         }
     )
 
-    # 쿠키 설정 결정: 크로스 도메인 환경에서는 도메인 설정하지 않음
+    # 쿠키 설정 결정: 프로덕션에서는 도메인 설정, 개발환경에서는 None
     is_production = bool(settings.domain)
-    # 크로스 도메인 환경에서는 쿠키 도메인을 설정하지 않음 (SameSite=None 사용)
-    cookie_domain = None
+    cookie_domain = settings.domain if is_production else None
 
     # Access token을 HttpOnly 쿠키로 설정 (세션 유지용)
     response.set_cookie(
@@ -114,10 +113,9 @@ async def login(user_data: UserLogin, db: Session = Depends(get_db)):
         }
     )
 
-    # 쿠키 설정 결정: 크로스 도메인 환경에서는 도메인 설정하지 않음
+    # 쿠키 설정 결정: 프로덕션에서는 도메인 설정, 개발환경에서는 None
     is_production = bool(settings.domain)
-    # 크로스 도메인 환경에서는 쿠키 도메인을 설정하지 않음 (SameSite=None 사용)
-    cookie_domain = None
+    cookie_domain = settings.domain if is_production else None
 
     # Access token을 HttpOnly 쿠키로 설정 (세션 유지용)
     response.set_cookie(
@@ -270,10 +268,9 @@ async def refresh_token(request: Request, db: Session = Depends(get_db)):
         }
     )
 
-    # 쿠키 설정 결정: 크로스 도메인 환경에서는 도메인 설정하지 않음
+    # 쿠키 설정 결정: 프로덕션에서는 도메인 설정, 개발환경에서는 None
     is_production = bool(settings.domain)
-    # 크로스 도메인 환경에서는 쿠키 도메인을 설정하지 않음 (SameSite=None 사용)
-    cookie_domain = None
+    cookie_domain = settings.domain if is_production else None
 
     # 새로운 Access token을 HttpOnly 쿠키로 업데이트 (세션 유지용)
     response.set_cookie(
@@ -296,8 +293,8 @@ async def logout():
     """
     response = JSONResponse(content={"message": "로그아웃 되었습니다."})
 
-    # 쿠키 삭제 시 도메인 설정 (크로스 도메인 환경에서는 None)
-    cookie_domain = None
+    # 쿠키 삭제 시 도메인 설정 통일화
+    cookie_domain = settings.domain if bool(settings.domain) else None
 
     response.delete_cookie(key="refresh_token", domain=cookie_domain)
     response.delete_cookie(key="access_token", domain=cookie_domain)

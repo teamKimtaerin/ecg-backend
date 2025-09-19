@@ -162,12 +162,12 @@ class CloudFrontProxyMiddleware(BaseHTTPMiddleware):
 # CloudFront 프록시 미들웨어 추가
 app.add_middleware(CloudFrontProxyMiddleware)
 
-# 세션 미들웨어 추가 (OAuth에 필요) - CloudFront 환경 최적화
+# 세션 미들웨어 추가 (OAuth에 필요) - 환경별 최적화
 app.add_middleware(
     SessionMiddleware,
     secret_key=settings.secret_key,
-    same_site="none",  # CloudFront 크로스 도메인 허용
-    https_only=True,  # SameSite=None은 Secure=True와 함께 사용해야 함
+    same_site="lax",  # 인증 토큰 쿠키와 일관성 유지
+    https_only=bool(settings.domain),  # 프로덕션에서만 HTTPS 강제
     max_age=3600,  # 1시간
     session_cookie="session",  # 명시적 쿠키 이름
 )
