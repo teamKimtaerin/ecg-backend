@@ -296,12 +296,22 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
         # Google 사용자 정보 가져오기
         user_info = await auth_service.get_google_user_info(token["access_token"])
 
+        # 디버깅: 구글에서 받은 사용자 정보 확인
+        print(f"Google user_info received: {user_info}")
+
         google_id = user_info["id"]
         email = user_info["email"]
         username = user_info.get("name", email.split("@")[0])
 
+        # 디버깅: 추출된 사용자 정보 확인
+        print(f"Extracted - google_id: {google_id}, email: {email}, username: {username}")
+
         # 기존 OAuth 사용자 확인
         user = auth_service.get_user_by_oauth_id(db, google_id, AuthProvider.GOOGLE)
+
+        if user:
+            # 디버깅: 기존 사용자 로그인
+            print(f"Existing OAuth user found - id: {user.id}, username: {user.username}, email: {user.email}")
 
         if not user:
             # 이메일로 기존 사용자 확인 (로컬 계정이 있는 경우)
@@ -321,6 +331,8 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
                 oauth_id=google_id,
                 provider=AuthProvider.GOOGLE,
             )
+            # 디버깅: 생성된 사용자 정보 확인
+            print(f"Created OAuth user - id: {user.id}, username: {user.username}, email: {user.email}")
 
         # JWT 토큰 쌍 생성
         access_token, refresh_token = auth_service.create_token_pair(
