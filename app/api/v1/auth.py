@@ -51,6 +51,7 @@ async def signup(user_data: UserCreate, db: Session = Depends(get_db)):
     response.set_cookie(
         key="refresh_token",
         value=refresh_token,
+        domain=settings.domain,
         httponly=True,
         secure=True,
         samesite="lax",
@@ -101,6 +102,7 @@ async def login(user_data: UserLogin, db: Session = Depends(get_db)):
     response.set_cookie(
         key="refresh_token",
         value=refresh_token,
+        domain=settings.domain,
         httponly=True,
         secure=True,
         samesite="lax",
@@ -218,7 +220,8 @@ async def logout():
     로그아웃 - refresh token 쿠키 삭제
     """
     response = JSONResponse(content={"message": "로그아웃 되었습니다."})
-    response.delete_cookie(key="refresh_token")
+    response.delete_cookie(key="refresh_token", domain=settings.domain)
+    response.delete_cookie(key="access_token", domain=settings.domain)
     return response
 
 
@@ -329,6 +332,7 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
         response.set_cookie(
             key="access_token",
             value=access_token,
+            domain=settings.domain,
             httponly=True,
             secure=True,
             samesite="lax",
@@ -339,6 +343,7 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
         response.set_cookie(
             key="refresh_token",
             value=refresh_token,
+            domain=settings.domain,
             httponly=True,
             secure=True,
             samesite="lax",
