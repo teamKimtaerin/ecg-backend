@@ -47,13 +47,28 @@ async def signup(user_data: UserCreate, db: Session = Depends(get_db)):
         }
     )
 
+    # 쿠키 설정 결정: DOMAIN이 설정되어 있으면 프로덕션 환경
+    is_production = bool(settings.domain)
+    cookie_domain = settings.domain if is_production else None
+
+    # Access token을 HttpOnly 쿠키로 설정 (세션 유지용)
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        domain=cookie_domain,
+        httponly=True,
+        secure=is_production,  # 프로덕션(DOMAIN 설정시)에서만 secure=True
+        samesite="lax",
+        max_age=24 * 60 * 60,  # 24시간
+    )
+
     # Refresh token을 HttpOnly 쿠키로 설정
     response.set_cookie(
         key="refresh_token",
         value=refresh_token,
-        domain=settings.domain if settings.domain else None,
+        domain=cookie_domain,
         httponly=True,
-        secure=bool(settings.domain),  # 프로덕션(DOMAIN 설정시)에서만 secure=True
+        secure=is_production,  # 프로덕션(DOMAIN 설정시)에서만 secure=True
         samesite="lax",
         max_age=30 * 24 * 60 * 60,  # 30일
     )
@@ -98,13 +113,28 @@ async def login(user_data: UserLogin, db: Session = Depends(get_db)):
         }
     )
 
+    # 쿠키 설정 결정: DOMAIN이 설정되어 있으면 프로덕션 환경
+    is_production = bool(settings.domain)
+    cookie_domain = settings.domain if is_production else None
+
+    # Access token을 HttpOnly 쿠키로 설정 (세션 유지용)
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        domain=cookie_domain,
+        httponly=True,
+        secure=is_production,  # 프로덕션(DOMAIN 설정시)에서만 secure=True
+        samesite="lax",
+        max_age=24 * 60 * 60,  # 24시간
+    )
+
     # Refresh token을 HttpOnly 쿠키로 설정
     response.set_cookie(
         key="refresh_token",
         value=refresh_token,
-        domain=settings.domain if settings.domain else None,
+        domain=cookie_domain,
         httponly=True,
-        secure=bool(settings.domain),  # 프로덕션(DOMAIN 설정시)에서만 secure=True
+        secure=is_production,  # 프로덕션(DOMAIN 설정시)에서만 secure=True
         samesite="lax",
         max_age=30 * 24 * 60 * 60,  # 30일
     )
@@ -206,12 +236,30 @@ async def refresh_token(request: Request, db: Session = Depends(get_db)):
         data={"user_id": user.id, "email": user.email}
     )
 
-    return JSONResponse(
+    # Response 생성
+    response = JSONResponse(
         content={
             "access_token": new_access_token,
             "token_type": "bearer",
         }
     )
+
+    # 쿠키 설정 결정: DOMAIN이 설정되어 있으면 프로덕션 환경
+    is_production = bool(settings.domain)
+    cookie_domain = settings.domain if is_production else None
+
+    # 새로운 Access token을 HttpOnly 쿠키로 업데이트 (세션 유지용)
+    response.set_cookie(
+        key="access_token",
+        value=new_access_token,
+        domain=cookie_domain,
+        httponly=True,
+        secure=is_production,  # 프로덕션(DOMAIN 설정시)에서만 secure=True
+        samesite="lax",
+        max_age=24 * 60 * 60,  # 24시간
+    )
+
+    return response
 
 
 @router.post("/logout")
