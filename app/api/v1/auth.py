@@ -47,9 +47,10 @@ async def signup(user_data: UserCreate, db: Session = Depends(get_db)):
         }
     )
 
-    # 쿠키 설정 결정: DOMAIN이 설정되어 있으면 프로덕션 환경
+    # 쿠키 설정 결정: 크로스 도메인 환경에서는 도메인 설정하지 않음
     is_production = bool(settings.domain)
-    cookie_domain = settings.domain if is_production else None
+    # 크로스 도메인 환경에서는 쿠키 도메인을 설정하지 않음 (SameSite=None 사용)
+    cookie_domain = None
 
     # Access token을 HttpOnly 쿠키로 설정 (세션 유지용)
     response.set_cookie(
@@ -58,7 +59,7 @@ async def signup(user_data: UserCreate, db: Session = Depends(get_db)):
         domain=cookie_domain,
         httponly=True,
         secure=is_production,  # 프로덕션(DOMAIN 설정시)에서만 secure=True
-        samesite="lax",
+        samesite="none" if is_production else "lax",
         max_age=24 * 60 * 60,  # 24시간
     )
 
@@ -69,7 +70,7 @@ async def signup(user_data: UserCreate, db: Session = Depends(get_db)):
         domain=cookie_domain,
         httponly=True,
         secure=is_production,  # 프로덕션(DOMAIN 설정시)에서만 secure=True
-        samesite="lax",
+        samesite="none" if is_production else "lax",
         max_age=30 * 24 * 60 * 60,  # 30일
     )
 
@@ -113,9 +114,10 @@ async def login(user_data: UserLogin, db: Session = Depends(get_db)):
         }
     )
 
-    # 쿠키 설정 결정: DOMAIN이 설정되어 있으면 프로덕션 환경
+    # 쿠키 설정 결정: 크로스 도메인 환경에서는 도메인 설정하지 않음
     is_production = bool(settings.domain)
-    cookie_domain = settings.domain if is_production else None
+    # 크로스 도메인 환경에서는 쿠키 도메인을 설정하지 않음 (SameSite=None 사용)
+    cookie_domain = None
 
     # Access token을 HttpOnly 쿠키로 설정 (세션 유지용)
     response.set_cookie(
@@ -124,7 +126,7 @@ async def login(user_data: UserLogin, db: Session = Depends(get_db)):
         domain=cookie_domain,
         httponly=True,
         secure=is_production,  # 프로덕션(DOMAIN 설정시)에서만 secure=True
-        samesite="lax",
+        samesite="none" if is_production else "lax",
         max_age=24 * 60 * 60,  # 24시간
     )
 
@@ -135,7 +137,7 @@ async def login(user_data: UserLogin, db: Session = Depends(get_db)):
         domain=cookie_domain,
         httponly=True,
         secure=is_production,  # 프로덕션(DOMAIN 설정시)에서만 secure=True
-        samesite="lax",
+        samesite="none" if is_production else "lax",
         max_age=30 * 24 * 60 * 60,  # 30일
     )
 
@@ -149,16 +151,33 @@ async def get_current_user_dependency(
     """
     현재 로그인한 사용자를 반환하는 의존성 함수
     - JWT 토큰 (Bearer 헤더 또는 HttpOnly 쿠키)으로 사용자 확인
+    - Origin 헤더 검증으로 CSRF 공격 방지
     """
+    # CSRF 보호: Origin 검증 (쿠키 기반 인증 시)
+    origin = request.headers.get("origin")
+    referer = request.headers.get("referer")
+
+    # 허용된 origin 목록
+    allowed_origins = [
+        "https://ho-it.site",
+        "http://localhost:3000",  # 개발 환경
+    ]
+
     token = None
 
-    # 1. Authorization 헤더에서 토큰 확인 (우선순위)
+    # 1. Authorization 헤더에서 토큰 확인 (우선순위, Origin 검증 불필요)
     auth_header = request.headers.get("Authorization")
     if auth_header and auth_header.startswith("Bearer "):
         token = auth_header[7:]  # "Bearer " 제거
 
-    # 2. HttpOnly 쿠키에서 access_token 확인
+    # 2. HttpOnly 쿠키에서 access_token 확인 (Origin 검증 필요)
     if not token:
+        # CSRF 보호: 쿠키 기반 인증 시 Origin 검증
+        if origin not in allowed_origins and not any(referer and referer.startswith(ao) for ao in allowed_origins):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="요청 출처가 허용되지 않습니다.",
+            )
         token = request.cookies.get("access_token")
 
     if not token:
@@ -244,9 +263,10 @@ async def refresh_token(request: Request, db: Session = Depends(get_db)):
         }
     )
 
-    # 쿠키 설정 결정: DOMAIN이 설정되어 있으면 프로덕션 환경
+    # 쿠키 설정 결정: 크로스 도메인 환경에서는 도메인 설정하지 않음
     is_production = bool(settings.domain)
-    cookie_domain = settings.domain if is_production else None
+    # 크로스 도메인 환경에서는 쿠키 도메인을 설정하지 않음 (SameSite=None 사용)
+    cookie_domain = None
 
     # 새로운 Access token을 HttpOnly 쿠키로 업데이트 (세션 유지용)
     response.set_cookie(
@@ -255,7 +275,7 @@ async def refresh_token(request: Request, db: Session = Depends(get_db)):
         domain=cookie_domain,
         httponly=True,
         secure=is_production,  # 프로덕션(DOMAIN 설정시)에서만 secure=True
-        samesite="lax",
+        samesite="none" if is_production else "lax",
         max_age=24 * 60 * 60,  # 24시간
     )
 
@@ -269,8 +289,8 @@ async def logout():
     """
     response = JSONResponse(content={"message": "로그아웃 되었습니다."})
 
-    # 쿠키 삭제시도 도메인 설정
-    cookie_domain = settings.domain if settings.domain else None
+    # 쿠키 삭제 시 도메인 설정 (크로스 도메인 환경에서는 None)
+    cookie_domain = None
 
     response.delete_cookie(key="refresh_token", domain=cookie_domain)
     response.delete_cookie(key="access_token", domain=cookie_domain)
@@ -403,7 +423,7 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
             domain=cookie_domain,
             httponly=True,
             secure=is_production,  # 프로덕션(DOMAIN 설정시)에서만 secure=True
-            samesite="lax",
+            samesite="none" if is_production else "lax",
             max_age=24 * 60 * 60,  # 24시간
         )
 
@@ -414,7 +434,7 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
             domain=cookie_domain,
             httponly=True,
             secure=is_production,  # 프로덕션(DOMAIN 설정시)에서만 secure=True
-            samesite="lax",
+            samesite="none" if is_production else "lax",
             max_age=30 * 24 * 60 * 60,  # 30일
         )
 
