@@ -59,7 +59,7 @@ async def signup(user_data: UserCreate, db: Session = Depends(get_db)):
         domain=cookie_domain,
         httponly=True,
         secure=is_production,  # 프로덕션(DOMAIN 설정시)에서만 secure=True
-        samesite="none" if is_production else "lax",
+        samesite="lax",  # 크로스 도메인 문제 해결을 위해 lax로 통일
         max_age=24 * 60 * 60,  # 24시간
     )
 
@@ -70,7 +70,7 @@ async def signup(user_data: UserCreate, db: Session = Depends(get_db)):
         domain=cookie_domain,
         httponly=True,
         secure=is_production,  # 프로덕션(DOMAIN 설정시)에서만 secure=True
-        samesite="none" if is_production else "lax",
+        samesite="lax",  # 크로스 도메인 문제 해결을 위해 lax로 통일
         max_age=30 * 24 * 60 * 60,  # 30일
     )
 
@@ -126,7 +126,7 @@ async def login(user_data: UserLogin, db: Session = Depends(get_db)):
         domain=cookie_domain,
         httponly=True,
         secure=is_production,  # 프로덕션(DOMAIN 설정시)에서만 secure=True
-        samesite="none" if is_production else "lax",
+        samesite="lax",  # 크로스 도메인 문제 해결을 위해 lax로 통일
         max_age=24 * 60 * 60,  # 24시간
     )
 
@@ -137,7 +137,7 @@ async def login(user_data: UserLogin, db: Session = Depends(get_db)):
         domain=cookie_domain,
         httponly=True,
         secure=is_production,  # 프로덕션(DOMAIN 설정시)에서만 secure=True
-        samesite="none" if is_production else "lax",
+        samesite="lax",  # 크로스 도메인 문제 해결을 위해 lax로 통일
         max_age=30 * 24 * 60 * 60,  # 30일
     )
 
@@ -172,13 +172,19 @@ async def get_current_user_dependency(
 
     # 2. HttpOnly 쿠키에서 access_token 확인 (Origin 검증 필요)
     if not token:
+        # 디버깅: 요청 정보 로그
+        print(f"🔍 Cookie auth attempt - Origin: {origin}, Referer: {referer}")
+        print(f"🔍 Available cookies: {list(request.cookies.keys())}")
+
         # CSRF 보호: 쿠키 기반 인증 시 Origin 검증
         if origin not in allowed_origins and not any(referer and referer.startswith(ao) for ao in allowed_origins):
+            print(f"❌ Origin validation failed - Origin: {origin}, Allowed: {allowed_origins}")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="요청 출처가 허용되지 않습니다.",
             )
         token = request.cookies.get("access_token")
+        print(f"🔍 Cookie token found: {bool(token)}")
 
     if not token:
         raise HTTPException(
@@ -216,6 +222,7 @@ async def get_current_user(
     현재 로그인한 사용자 정보 조회
     - JWT 토큰 (Bearer 또는 HttpOnly 쿠키)으로 사용자 확인
     """
+    print(f"✅ Successfully authenticated user: {current_user.email} (ID: {current_user.id})")
     return UserResponse.model_validate(current_user)
 
 
@@ -275,7 +282,7 @@ async def refresh_token(request: Request, db: Session = Depends(get_db)):
         domain=cookie_domain,
         httponly=True,
         secure=is_production,  # 프로덕션(DOMAIN 설정시)에서만 secure=True
-        samesite="none" if is_production else "lax",
+        samesite="lax",  # 크로스 도메인 문제 해결을 위해 lax로 통일
         max_age=24 * 60 * 60,  # 24시간
     )
 
@@ -423,7 +430,7 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
             domain=cookie_domain,
             httponly=True,
             secure=is_production,  # 프로덕션(DOMAIN 설정시)에서만 secure=True
-            samesite="none" if is_production else "lax",
+            samesite="lax",  # 크로스 도메인 문제 해결을 위해 lax로 통일
             max_age=24 * 60 * 60,  # 24시간
         )
 
@@ -434,7 +441,7 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
             domain=cookie_domain,
             httponly=True,
             secure=is_production,  # 프로덕션(DOMAIN 설정시)에서만 secure=True
-            samesite="none" if is_production else "lax",
+            samesite="lax",  # 크로스 도메인 문제 해결을 위해 lax로 통일
             max_age=30 * 24 * 60 * 60,  # 30일
         )
 
