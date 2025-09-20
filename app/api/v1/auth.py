@@ -51,6 +51,9 @@ async def signup(user_data: UserCreate, db: Session = Depends(get_db)):
     is_production = bool(settings.domain)
     cookie_domain = settings.domain if is_production else None
 
+    # 디버깅 로그
+    print(f"🍪 Signup - Setting cookies with domain: {cookie_domain}, secure: {is_production}")
+
     # Access token을 HttpOnly 쿠키로 설정 (세션 유지용)
     response.set_cookie(
         key="access_token",
@@ -214,12 +217,16 @@ async def get_current_user_dependency(
 
 @router.get("/me", response_model=UserResponse)
 async def get_current_user(
+    request: Request,
     current_user: User = Depends(get_current_user_dependency),
 ):
     """
     현재 로그인한 사용자 정보 조회
     - JWT 토큰 (Bearer 또는 HttpOnly 쿠키)으로 사용자 확인
     """
+    # 디버깅: 요청에 포함된 모든 쿠키 출력
+    print(f"🔍 /me endpoint - Cookies received: {list(request.cookies.keys())}")
+    print(f"🔍 /me endpoint - Has access_token: {'access_token' in request.cookies}")
     print(f"✅ Successfully authenticated user: {current_user.email} (ID: {current_user.id})")
     return UserResponse.model_validate(current_user)
 
