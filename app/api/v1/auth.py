@@ -162,6 +162,7 @@ async def get_current_user_dependency(
     allowed_origins = [
         "https://ho-it.site",
         "http://localhost:3000",  # 개발 환경
+        "http://127.0.0.1:3000",  # 개발 환경 (다른 주소)
     ]
 
     token = None
@@ -177,13 +178,18 @@ async def get_current_user_dependency(
         print(f"🔍 Cookie auth attempt - Origin: {origin}, Referer: {referer}")
         print(f"🔍 Available cookies: {list(request.cookies.keys())}")
 
-        # CSRF 보호: 쿠키 기반 인증 시 Origin 검증
-        if origin not in allowed_origins and not any(referer and referer.startswith(ao) for ao in allowed_origins):
-            print(f"❌ Origin validation failed - Origin: {origin}, Allowed: {allowed_origins}")
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="요청 출처가 허용되지 않습니다.",
-            )
+        # CSRF 보호: 쿠키 기반 인증 시 Origin 검증 (개발 환경에서는 완화)
+        is_development = not bool(settings.domain)
+
+        if not is_development:  # 프로덕션에서만 엄격한 Origin 검증
+            if origin not in allowed_origins and not any(referer and referer.startswith(ao) for ao in allowed_origins):
+                print(f"❌ Origin validation failed - Origin: {origin}, Allowed: {allowed_origins}")
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="요청 출처가 허용되지 않습니다.",
+                )
+        else:
+            print(f"🔧 Development mode - Origin validation bypassed")
         token = request.cookies.get("access_token")
         print(f"🔍 Cookie token found: {bool(token)}")
 
