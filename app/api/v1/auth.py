@@ -301,10 +301,24 @@ async def logout():
     response = JSONResponse(content={"message": "로그아웃 되었습니다."})
 
     # 쿠키 삭제 시 도메인 설정 통일화
-    cookie_domain = settings.domain if bool(settings.domain) else None
+    is_production = bool(settings.domain)
+    cookie_domain = settings.domain if is_production else None
 
-    response.delete_cookie(key="refresh_token", domain=cookie_domain)
-    response.delete_cookie(key="access_token", domain=cookie_domain)
+    print(f"🚪 Logout - Deleting cookies with domain: {cookie_domain}, secure: {is_production}")
+
+    # 쿠키 삭제 시 설정했던 것과 동일한 속성을 사용해야 함
+    response.delete_cookie(
+        key="refresh_token",
+        domain=cookie_domain,
+        secure=is_production,
+        samesite="lax"
+    )
+    response.delete_cookie(
+        key="access_token",
+        domain=cookie_domain,
+        secure=is_production,
+        samesite="lax"
+    )
     return response
 
 
