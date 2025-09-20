@@ -1,6 +1,10 @@
 #!/bin/bash
 # 대화형 PR 생성 도구 - Claude Code와 함께 사용
 
+# 한국어 로케일 설정
+export LANG=ko_KR.UTF-8
+export LC_ALL=ko_KR.UTF-8
+
 SUMMARY="$1"
 
 if [ -z "$SUMMARY" ]; then
@@ -137,22 +141,20 @@ $DIFF_CONTENT
 ---
 🤖 Generated with Claude Code"
 
-# 프롬프트를 클립보드에 복사 (macOS)
+# 프롬프트를 클립보드에 복사 (macOS, Windows 지원)
 if command -v pbcopy &> /dev/null; then
+    # macOS
     echo "$CLAUDE_PROMPT" | pbcopy
-    echo ""
-    echo "✅ 프롬프트가 클립보드에 복사되었습니다!"
-    echo ""
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "🤖 다음 단계를 따라주세요:"
-    echo ""
-    echo "1. Claude Code (claude.ai/code) 열기"
-    echo "2. Cmd+V로 프롬프트 붙여넣기 (이미 복사됨)"
-    echo "3. Claude의 분석 결과 복사"
-    echo "4. 아래에서 Enter 누르고 결과 붙여넣기"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "✅ 프롬프트가 클립보드에 복사되었습니다! (macOS)"
+elif command -v clip &> /dev/null; then
+    # Windows (PowerShell, CMD, Git Bash 일부)
+    echo "$CLAUDE_PROMPT" | clip
+    echo "✅ 프롬프트가 클립보드에 복사되었습니다! (Windows - clip)"
+elif command -v win32yank.exe &> /dev/null; then
+    # Git Bash / WSL 환경에서 많이 쓰는 도구
+    echo "$CLAUDE_PROMPT" | win32yank.exe -i
+    echo "✅ 프롬프트가 클립보드에 복사되었습니다! (Windows - win32yank)"
 else
-    echo ""
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo "🤖 Claude Code 프롬프트:"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
