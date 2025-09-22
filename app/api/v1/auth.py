@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends, status, Request
 from fastapi.responses import RedirectResponse, JSONResponse
 from sqlalchemy.orm import Session
+from typing import Optional
 from authlib.integrations.base_client.errors import OAuthError
 from app.db.database import get_db
 from app.schemas.user import UserCreate, UserLogin, UserResponse
@@ -52,7 +53,9 @@ async def signup(user_data: UserCreate, db: Session = Depends(get_db)):
     cookie_domain = settings.domain if is_production else None
 
     # 디버깅 로그
-    print(f"🍪 Signup - Setting cookies with domain: {cookie_domain}, secure: {is_production}")
+    print(
+        f"🍪 Signup - Setting cookies with domain: {cookie_domain}, secure: {is_production}"
+    )
 
     # Access token을 HttpOnly 쿠키로 설정 (세션 유지용)
     response.set_cookie(
@@ -62,6 +65,7 @@ async def signup(user_data: UserCreate, db: Session = Depends(get_db)):
         httponly=True,
         secure=is_production,  # 프로덕션(DOMAIN 설정시)에서만 secure=True
         samesite="lax",  # 크로스 도메인 문제 해결을 위해 lax로 통일
+        path="/",
         max_age=24 * 60 * 60,  # 24시간
     )
 
@@ -73,6 +77,7 @@ async def signup(user_data: UserCreate, db: Session = Depends(get_db)):
         httponly=True,
         secure=is_production,  # 프로덕션(DOMAIN 설정시)에서만 secure=True
         samesite="lax",  # 크로스 도메인 문제 해결을 위해 lax로 통일
+        path="/",
         max_age=30 * 24 * 60 * 60,  # 30일
     )
 
@@ -128,6 +133,7 @@ async def login(user_data: UserLogin, db: Session = Depends(get_db)):
         httponly=True,
         secure=is_production,  # 프로덕션(DOMAIN 설정시)에서만 secure=True
         samesite="lax",  # 크로스 도메인 문제 해결을 위해 lax로 통일
+        path="/",
         max_age=24 * 60 * 60,  # 24시간
     )
 
@@ -139,6 +145,7 @@ async def login(user_data: UserLogin, db: Session = Depends(get_db)):
         httponly=True,
         secure=is_production,  # 프로덕션(DOMAIN 설정시)에서만 secure=True
         samesite="lax",  # 크로스 도메인 문제 해결을 위해 lax로 통일
+        path="/",
         max_age=30 * 24 * 60 * 60,  # 30일
     )
 
@@ -182,14 +189,18 @@ async def get_current_user_dependency(
         is_development = not bool(settings.domain)
 
         if not is_development:  # 프로덕션에서만 엄격한 Origin 검증
-            if origin not in allowed_origins and not any(referer and referer.startswith(ao) for ao in allowed_origins):
-                print(f"❌ Origin validation failed - Origin: {origin}, Allowed: {allowed_origins}")
+            if origin not in allowed_origins and not any(
+                referer and referer.startswith(ao) for ao in allowed_origins
+            ):
+                print(
+                    f"❌ Origin validation failed - Origin: {origin}, Allowed: {allowed_origins}"
+                )
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="요청 출처가 허용되지 않습니다.",
                 )
         else:
-            print(f"🔧 Development mode - Origin validation bypassed")
+            print("🔧 Development mode - Origin validation bypassed")
         token = request.cookies.get("access_token")
         print(f"🔍 Cookie token found: {bool(token)}")
 
@@ -221,6 +232,21 @@ async def get_current_user_dependency(
     return user
 
 
+async def get_current_user_optional(
+    request: Request,
+    db: Session = Depends(get_db),
+) -> Optional[User]:
+    """
+    현재 로그인한 사용자를 반환하는 선택적 의존성 함수
+    - 로그인하지 않은 경우 None 반환 (에러 발생하지 않음)
+    """
+    try:
+        return await get_current_user_dependency(request, db)
+    except HTTPException:
+        # 인증 실패 시 None 반환 (에러 발생시키지 않음)
+        return None
+
+
 @router.get("/me", response_model=UserResponse)
 async def get_current_user(
     request: Request,
@@ -233,7 +259,9 @@ async def get_current_user(
     # 디버깅: 요청에 포함된 모든 쿠키 출력
     print(f"🔍 /me endpoint - Cookies received: {list(request.cookies.keys())}")
     print(f"🔍 /me endpoint - Has access_token: {'access_token' in request.cookies}")
-    print(f"✅ Successfully authenticated user: {current_user.email} (ID: {current_user.id})")
+    print(
+        f"✅ Successfully authenticated user: {current_user.email} (ID: {current_user.id})"
+    )
     return UserResponse.model_validate(current_user)
 
 
@@ -293,6 +321,7 @@ async def refresh_token(request: Request, db: Session = Depends(get_db)):
         httponly=True,
         secure=is_production,  # 프로덕션(DOMAIN 설정시)에서만 secure=True
         samesite="lax",  # 크로스 도메인 문제 해결을 위해 lax로 통일
+        path="/",
         max_age=24 * 60 * 60,  # 24시간
     )
 
@@ -300,7 +329,7 @@ async def refresh_token(request: Request, db: Session = Depends(get_db)):
 
 
 @router.post("/logout")
-async def logout():
+async def logout(request: Request):
     """
     로그아웃 - refresh token 쿠키 삭제
     """
@@ -310,21 +339,32 @@ async def logout():
     is_production = bool(settings.domain)
     cookie_domain = settings.domain if is_production else None
 
-    print(f"🚪 Logout - Deleting cookies with domain: {cookie_domain}, secure: {is_production}")
+    print(
+        "🚪 Logout - Incoming cookies:",
+        {key: bool(value) for key, value in request.cookies.items()},
+    )
+    print(
+        f"🚪 Logout - Clearing cookies with domain: {cookie_domain}, secure: {is_production}"
+    )
 
-    # 쿠키 삭제 시 설정했던 것과 동일한 속성을 사용해야 함
-    response.delete_cookie(
-        key="refresh_token",
-        domain=cookie_domain,
-        secure=is_production,
-        samesite="lax"
-    )
-    response.delete_cookie(
-        key="access_token",
-        domain=cookie_domain,
-        secure=is_production,
-        samesite="lax"
-    )
+    # Access / Refresh 토큰은 HttpOnly 속성이 있으므로 동일 속성으로 무효화
+    for cookie_name in ("access_token", "refresh_token"):
+        response.set_cookie(
+            key=cookie_name,
+            value="",
+            domain=cookie_domain,
+            httponly=True,
+            secure=is_production,
+            samesite="lax",
+            path="/",
+            expires=0,
+            max_age=0,
+        )
+
+    # OAuth 세션 쿠키도 정리 (존재 여부에 따라)
+    response.delete_cookie("session", domain=cookie_domain, path="/")
+    response.delete_cookie("session", path="/")
+
     return response
 
 
@@ -403,14 +443,18 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
         username = user_info.get("name", email.split("@")[0])
 
         # 디버깅: 추출된 사용자 정보 확인
-        print(f"Extracted - google_id: {google_id}, email: {email}, username: {username}")
+        print(
+            f"Extracted - google_id: {google_id}, email: {email}, username: {username}"
+        )
 
         # 기존 OAuth 사용자 확인
         user = auth_service.get_user_by_oauth_id(db, google_id, AuthProvider.GOOGLE)
 
         if user:
             # 디버깅: 기존 사용자 로그인
-            print(f"Existing OAuth user found - id: {user.id}, username: {user.username}, email: {user.email}")
+            print(
+                f"Existing OAuth user found - id: {user.id}, username: {user.username}, email: {user.email}"
+            )
 
         if not user:
             # 이메일로 기존 사용자 확인 (로컬 계정이 있는 경우)
@@ -431,7 +475,9 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
                 provider=AuthProvider.GOOGLE,
             )
             # 디버깅: 생성된 사용자 정보 확인
-            print(f"Created OAuth user - id: {user.id}, username: {user.username}, email: {user.email}")
+            print(
+                f"Created OAuth user - id: {user.id}, username: {user.username}, email: {user.email}"
+            )
 
         # JWT 토큰 쌍 생성
         access_token, refresh_token = auth_service.create_token_pair(
@@ -455,6 +501,7 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
             httponly=True,
             secure=is_production,  # 프로덕션(DOMAIN 설정시)에서만 secure=True
             samesite="lax",  # 크로스 도메인 문제 해결을 위해 lax로 통일
+            path="/",
             max_age=24 * 60 * 60,  # 24시간
         )
 
@@ -466,6 +513,7 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
             httponly=True,
             secure=is_production,  # 프로덕션(DOMAIN 설정시)에서만 secure=True
             samesite="lax",  # 크로스 도메인 문제 해결을 위해 lax로 통일
+            path="/",
             max_age=30 * 24 * 60 * 60,  # 30일
         )
 
