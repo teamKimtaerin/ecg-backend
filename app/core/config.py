@@ -37,9 +37,7 @@ class Settings(BaseSettings):
     aws_bedrock_region: str = Field(
         default="us-east-1", description="AWS Bedrock region"
     )
-    aws_bedrock_access_key_id: str = Field(
-        ..., description="AWS Bedrock Access Key ID"
-    )
+    aws_bedrock_access_key_id: str = Field(..., description="AWS Bedrock Access Key ID")
     aws_bedrock_secret_access_key: str = Field(
         ..., description="AWS Bedrock Secret Access Key"
     )

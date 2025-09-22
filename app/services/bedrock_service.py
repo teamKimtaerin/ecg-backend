@@ -1,6 +1,6 @@
 import json
 import boto3
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from botocore.exceptions import ClientError, BotoCoreError
 from app.core.config import settings
 import logging
@@ -20,7 +20,9 @@ class BedrockService:
                 aws_access_key_id=settings.aws_bedrock_access_key_id,
                 aws_secret_access_key=settings.aws_bedrock_secret_access_key,
             )
-            logger.info(f"Bedrock client initialized for region: {settings.aws_bedrock_region}")
+            logger.info(
+                f"Bedrock client initialized for region: {settings.aws_bedrock_region}"
+            )
         except Exception as e:
             logger.error(f"Failed to initialize Bedrock client: {e}")
             raise
@@ -30,20 +32,20 @@ class BedrockService:
         prompt: str,
         max_tokens: int = 1000,
         temperature: float = 0.7,
-        model_id: str = "us.anthropic.claude-3-5-haiku-20241022-v1:0"
+        model_id: str = "us.anthropic.claude-3-5-haiku-20241022-v1:0",
     ) -> Dict[str, Any]:
         """
         Claude 모델을 호출하여 응답 생성
-        
+
         Args:
             prompt: 입력 프롬프트
             max_tokens: 최대 토큰 수
             temperature: 온도 (창의성 조절)
             model_id: 사용할 Claude 모델 ID
-            
+
         Returns:
             Dict containing completion and stop_reason
-            
+
         Raises:
             Exception: Bedrock API 호출 실패 시
         """
@@ -53,40 +55,39 @@ class BedrockService:
                 "anthropic_version": "bedrock-2023-05-31",
                 "max_tokens": max_tokens,
                 "temperature": temperature,
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ]
+                "messages": [{"role": "user", "content": prompt}],
             }
 
             logger.info(f"Invoking Claude model: {model_id}")
-            logger.debug(f"Request body: {json.dumps(request_body, ensure_ascii=False)[:200]}...")
+            logger.debug(
+                f"Request body: {json.dumps(request_body, ensure_ascii=False)[:200]}..."
+            )
 
             # Bedrock API 호출
             response = self.client.invoke_model(
                 modelId=model_id,
                 body=json.dumps(request_body),
                 contentType="application/json",
-                accept="application/json"
+                accept="application/json",
             )
 
             # 응답 파싱
             response_body = json.loads(response["body"].read())
-            
+
             logger.info("Claude model invocation successful")
-            logger.debug(f"Response: {json.dumps(response_body, ensure_ascii=False)[:200]}...")
+            logger.debug(
+                f"Response: {json.dumps(response_body, ensure_ascii=False)[:200]}..."
+            )
 
             # Claude 3.5 응답 포맷에서 텍스트 추출
             if "content" in response_body and len(response_body["content"]) > 0:
                 completion = response_body["content"][0]["text"]
                 stop_reason = response_body.get("stop_reason", "end_turn")
-                
+
                 return {
                     "completion": completion,
                     "stop_reason": stop_reason,
-                    "usage": response_body.get("usage", {})
+                    "usage": response_body.get("usage", {}),
                 }
             else:
                 raise Exception("Invalid response format from Claude model")
@@ -95,7 +96,7 @@ class BedrockService:
             error_code = e.response["Error"]["Code"]
             error_message = e.response["Error"]["Message"]
             logger.error(f"AWS Bedrock ClientError: {error_code} - {error_message}")
-            
+
             # 사용자 친화적 에러 메시지 제공
             if error_code == "UnrecognizedClientException":
                 raise Exception("AWS 자격증명이 유효하지 않습니다. 설정을 확인해주세요.")
@@ -123,17 +124,13 @@ class BedrockService:
     def test_connection(self) -> bool:
         """
         Bedrock 연결 테스트
-        
+
         Returns:
             bool: 연결 성공 여부
         """
         try:
             # 간단한 테스트 프롬프트로 연결 확인
-            result = self.invoke_claude(
-                prompt="안녕하세요",
-                max_tokens=50,
-                temperature=0.1
-            )
+            self.invoke_claude(prompt="안녕하세요", max_tokens=50, temperature=0.1)
             return True
         except Exception as e:
             logger.error(f"Bedrock connection test failed: {e}")
