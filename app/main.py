@@ -89,8 +89,6 @@ async def startup_event():
     try:
         from app.db.database import get_db
         from app.models.job import Job, JobStatus
-        from app.models.render_job import RenderJob
-        from app.models.render_usage_stats import RenderUsageStats
         from datetime import datetime, timedelta
 
         db = next(get_db())
@@ -177,7 +175,7 @@ default_origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     # Production domains
-    "https://ho-it.site"
+    "https://ho-it.site",
 ]
 
 # 환경변수가 있으면 그것을 사용, 없으면 기본값 사용
