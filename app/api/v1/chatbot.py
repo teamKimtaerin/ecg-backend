@@ -8,7 +8,7 @@ from app.schemas.chatbot import (
     ChatBotRequest,
     ChatBotResponse,
     ChatBotErrorResponse,
-    SavedFileInfo
+    SavedFileInfo,
 )
 from app.services.bedrock_service import bedrock_service
 
@@ -22,10 +22,10 @@ router = APIRouter(prefix="/chatbot", tags=["ChatBot"])
 def build_context_prompt(request: ChatBotRequest) -> str:
     """
     ChatBot 요청을 기반으로 컨텍스트 프롬프트 구성
-    
+
     Args:
         request: ChatBot 요청 객체
-        
+
     Returns:
         str: 완성된 프롬프트
     """
@@ -56,15 +56,17 @@ ECG 주요 기능:
     if request.conversation_history and len(request.conversation_history) > 0:
         # 최근 6개 메시지만 포함 (토큰 절약)
         recent_messages = request.conversation_history[-6:]
-        conversation_context = "\n\n".join([
-            f"{'Human' if msg.sender == 'user' else 'Assistant'}: {msg.content}"
-            for msg in recent_messages
-        ])
+        conversation_context = "\n\n".join(
+            [
+                f"{'Human' if msg.sender == 'user' else 'Assistant'}: {msg.content}"
+                for msg in recent_messages
+            ]
+        )
         conversation_context += "\n\n"
 
     # 전체 프롬프트 구성
     full_prompt = f"{system_prompt}\n\n{conversation_context}Human: {request.prompt}"
-    
+
     return full_prompt
 
 
@@ -77,12 +79,12 @@ ECG 주요 기능:
         503: {"model": ChatBotErrorResponse, "description": "외부 서비스 이용 불가"},
     },
     summary="ChatBot 메시지 전송",
-    description="ECG ChatBot과 대화를 나누는 API 엔드포인트입니다. 자막 편집 관련 질문에 답변하고 응답을 파일로 저장합니다."
+    description="ECG ChatBot과 대화를 나누는 API 엔드포인트입니다. 자막 편집 관련 질문에 답변하고 응답을 파일로 저장합니다.",
 )
 async def send_chatbot_message(request: ChatBotRequest) -> ChatBotResponse:
     """
     ChatBot에게 메시지를 전송하고 응답을 받습니다. 응답은 자동으로 output 폴더에 저장됩니다.
-    
+
     - **prompt**: 사용자 입력 메시지 (필수)
     - **conversation_history**: 이전 대화 내역 (선택사항)
     - **max_tokens**: 최대 응답 토큰 수 (기본값: 1000)
@@ -90,45 +92,47 @@ async def send_chatbot_message(request: ChatBotRequest) -> ChatBotResponse:
     - **save_response**: 응답을 파일로 저장할지 여부 (기본값: True)
     """
     start_time = time.time()
-    
+
     try:
         logger.info(f"ChatBot request received: prompt length={len(request.prompt)}")
-        
+
         # 프롬프트 구성
         full_prompt = build_context_prompt(request)
-        
+
         logger.debug(f"Full prompt preview: {full_prompt[:200]}...")
-        
+
         # Bedrock 서비스 호출 (파일 저장 포함)
         result = bedrock_service.invoke_claude(
             prompt=full_prompt,
             max_tokens=request.max_tokens,
             temperature=request.temperature,
-            save_response=request.save_response
+            save_response=request.save_response,
         )
-        
+
         # 처리 시간 계산
         processing_time_ms = int((time.time() - start_time) * 1000)
-        
-        logger.info(f"ChatBot response generated successfully in {processing_time_ms}ms")
-        
+
+        logger.info(
+            f"ChatBot response generated successfully in {processing_time_ms}ms"
+        )
+
         # 응답 구성
         response_data = {
             "completion": result["completion"],
             "stop_reason": result["stop_reason"],
             "usage": result.get("usage"),
-            "processing_time_ms": processing_time_ms
+            "processing_time_ms": processing_time_ms,
         }
-        
+
         # 파일 저장 정보 추가
         if "saved_files" in result:
             response_data["saved_files"] = result["saved_files"]
-        
+
         if "save_error" in result:
             response_data["save_error"] = result["save_error"]
-        
+
         return ChatBotResponse(**response_data)
-        
+
     except ValueError as e:
         logger.error(f"Validation error: {e}")
         raise HTTPException(
@@ -136,13 +140,13 @@ async def send_chatbot_message(request: ChatBotRequest) -> ChatBotResponse:
             detail={
                 "error": "요청 형식이 올바르지 않습니다",
                 "error_code": "VALIDATION_ERROR",
-                "details": str(e)
-            }
+                "details": str(e),
+            },
         )
-        
+
     except Exception as e:
         logger.error(f"ChatBot API error: {e}")
-        
+
         # AWS 관련 에러인지 확인
         error_message = str(e)
         if "AWS" in error_message or "Bedrock" in error_message:
@@ -151,21 +155,21 @@ async def send_chatbot_message(request: ChatBotRequest) -> ChatBotResponse:
         else:
             status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
             error_code = "INTERNAL_SERVER_ERROR"
-        
+
         raise HTTPException(
             status_code=status_code,
             detail={
                 "error": error_message,
                 "error_code": error_code,
-                "details": f"처리 시간: {int((time.time() - start_time) * 1000)}ms"
-            }
+                "details": f"처리 시간: {int((time.time() - start_time) * 1000)}ms",
+            },
         )
 
 
 @router.get(
     "/health",
     summary="ChatBot 서비스 상태 확인",
-    description="ChatBot 서비스와 AWS Bedrock 연결 상태를 확인합니다."
+    description="ChatBot 서비스와 AWS Bedrock 연결 상태를 확인합니다.",
 )
 async def chatbot_health_check() -> Dict[str, Any]:
     """
@@ -174,14 +178,14 @@ async def chatbot_health_check() -> Dict[str, Any]:
     try:
         # Bedrock 연결 테스트
         is_bedrock_healthy = bedrock_service.test_connection()
-        
+
         return {
             "status": "healthy" if is_bedrock_healthy else "unhealthy",
             "bedrock_connection": is_bedrock_healthy,
             "timestamp": time.time(),
-            "service": "ECG ChatBot API"
+            "service": "ECG ChatBot API",
         }
-        
+
     except Exception as e:
         logger.error(f"Health check failed: {e}")
         return {
@@ -189,7 +193,7 @@ async def chatbot_health_check() -> Dict[str, Any]:
             "bedrock_connection": False,
             "error": str(e),
             "timestamp": time.time(),
-            "service": "ECG ChatBot API"
+            "service": "ECG ChatBot API",
         }
 
 
@@ -197,14 +201,14 @@ async def chatbot_health_check() -> Dict[str, Any]:
     "/saved-responses",
     response_model=List[str],
     summary="저장된 응답 파일 목록 조회",
-    description="저장된 ChatBot 응답 파일들의 목록을 조회합니다."
+    description="저장된 ChatBot 응답 파일들의 목록을 조회합니다.",
 )
 async def get_saved_responses(
     pattern: Optional[str] = Query(default="bedrock_*", description="파일 패턴 필터")
 ) -> List[str]:
     """
     저장된 응답 파일 목록을 조회합니다.
-    
+
     - **pattern**: 파일 패턴 (예: "bedrock_*", "*.json")
     """
     try:
@@ -218,8 +222,8 @@ async def get_saved_responses(
             detail={
                 "error": "저장된 파일 목록을 가져오는데 실패했습니다",
                 "error_code": "FILE_LIST_ERROR",
-                "details": str(e)
-            }
+                "details": str(e),
+            },
         )
 
 
@@ -227,29 +231,29 @@ async def get_saved_responses(
     "/file-info/{filename}",
     response_model=SavedFileInfo,
     summary="파일 정보 조회",
-    description="특정 응답 파일의 상세 정보를 조회합니다."
+    description="특정 응답 파일의 상세 정보를 조회합니다.",
 )
 async def get_file_info(filename: str) -> SavedFileInfo:
     """
     특정 파일의 정보를 조회합니다.
-    
+
     - **filename**: 조회할 파일명
     """
     try:
         file_info = bedrock_service.get_response_file_info(filename)
-        
+
         if "error" in file_info:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail={
                     "error": "파일을 찾을 수 없습니다",
                     "error_code": "FILE_NOT_FOUND",
-                    "details": file_info["error"]
-                }
+                    "details": file_info["error"],
+                },
             )
-        
+
         return SavedFileInfo(**file_info)
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -259,6 +263,6 @@ async def get_file_info(filename: str) -> SavedFileInfo:
             detail={
                 "error": "파일 정보를 가져오는데 실패했습니다",
                 "error_code": "FILE_INFO_ERROR",
-                "details": str(e)
-            }
+                "details": str(e),
+            },
         )
