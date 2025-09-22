@@ -1,5 +1,4 @@
 from sqlalchemy import Column, String, Integer, Float, Boolean, DateTime, JSON
-from sqlalchemy.dialects.postgresql import UUID
 import uuid
 from datetime import datetime
 from app.db.database import Base
@@ -49,5 +48,5 @@ class PluginAsset(Base):
             "tags": self.tags or [],
             "isFavorite": self.is_favorite,
             "createdAt": self.created_at.isoformat() if self.created_at else None,
-            "updatedAt": self.updated_at.isoformat() if self.updated_at else None
+            "updatedAt": self.updated_at.isoformat() if self.updated_at else None,
         }

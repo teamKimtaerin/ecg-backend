@@ -53,7 +53,9 @@ async def signup(user_data: UserCreate, db: Session = Depends(get_db)):
     cookie_domain = settings.domain if is_production else None
 
     # 디버깅 로그
-    print(f"🍪 Signup - Setting cookies with domain: {cookie_domain}, secure: {is_production}")
+    print(
+        f"🍪 Signup - Setting cookies with domain: {cookie_domain}, secure: {is_production}"
+    )
 
     # Access token을 HttpOnly 쿠키로 설정 (세션 유지용)
     response.set_cookie(
@@ -187,14 +189,18 @@ async def get_current_user_dependency(
         is_development = not bool(settings.domain)
 
         if not is_development:  # 프로덕션에서만 엄격한 Origin 검증
-            if origin not in allowed_origins and not any(referer and referer.startswith(ao) for ao in allowed_origins):
-                print(f"❌ Origin validation failed - Origin: {origin}, Allowed: {allowed_origins}")
+            if origin not in allowed_origins and not any(
+                referer and referer.startswith(ao) for ao in allowed_origins
+            ):
+                print(
+                    f"❌ Origin validation failed - Origin: {origin}, Allowed: {allowed_origins}"
+                )
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="요청 출처가 허용되지 않습니다.",
                 )
         else:
-            print(f"🔧 Development mode - Origin validation bypassed")
+            print("🔧 Development mode - Origin validation bypassed")
         token = request.cookies.get("access_token")
         print(f"🔍 Cookie token found: {bool(token)}")
 
@@ -253,7 +259,9 @@ async def get_current_user(
     # 디버깅: 요청에 포함된 모든 쿠키 출력
     print(f"🔍 /me endpoint - Cookies received: {list(request.cookies.keys())}")
     print(f"🔍 /me endpoint - Has access_token: {'access_token' in request.cookies}")
-    print(f"✅ Successfully authenticated user: {current_user.email} (ID: {current_user.id})")
+    print(
+        f"✅ Successfully authenticated user: {current_user.email} (ID: {current_user.id})"
+    )
     return UserResponse.model_validate(current_user)
 
 
@@ -335,7 +343,9 @@ async def logout(request: Request):
         "🚪 Logout - Incoming cookies:",
         {key: bool(value) for key, value in request.cookies.items()},
     )
-    print(f"🚪 Logout - Clearing cookies with domain: {cookie_domain}, secure: {is_production}")
+    print(
+        f"🚪 Logout - Clearing cookies with domain: {cookie_domain}, secure: {is_production}"
+    )
 
     # Access / Refresh 토큰은 HttpOnly 속성이 있으므로 동일 속성으로 무효화
     for cookie_name in ("access_token", "refresh_token"):
@@ -433,14 +443,18 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
         username = user_info.get("name", email.split("@")[0])
 
         # 디버깅: 추출된 사용자 정보 확인
-        print(f"Extracted - google_id: {google_id}, email: {email}, username: {username}")
+        print(
+            f"Extracted - google_id: {google_id}, email: {email}, username: {username}"
+        )
 
         # 기존 OAuth 사용자 확인
         user = auth_service.get_user_by_oauth_id(db, google_id, AuthProvider.GOOGLE)
 
         if user:
             # 디버깅: 기존 사용자 로그인
-            print(f"Existing OAuth user found - id: {user.id}, username: {user.username}, email: {user.email}")
+            print(
+                f"Existing OAuth user found - id: {user.id}, username: {user.username}, email: {user.email}"
+            )
 
         if not user:
             # 이메일로 기존 사용자 확인 (로컬 계정이 있는 경우)
@@ -461,7 +475,9 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
                 provider=AuthProvider.GOOGLE,
             )
             # 디버깅: 생성된 사용자 정보 확인
-            print(f"Created OAuth user - id: {user.id}, username: {user.username}, email: {user.email}")
+            print(
+                f"Created OAuth user - id: {user.id}, username: {user.username}, email: {user.email}"
+            )
 
         # JWT 토큰 쌍 생성
         access_token, refresh_token = auth_service.create_token_pair(
