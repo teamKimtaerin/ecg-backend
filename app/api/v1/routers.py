@@ -10,7 +10,6 @@ from .plugins import router as plugins_router
 from .assets import router as assets_router
 from .admin import router as admin_router
 
-
 api_router = APIRouter()
 
 api_router.include_router(video_router)
