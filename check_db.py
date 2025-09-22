@@ -6,7 +6,11 @@ from sqlalchemy import text
 db = SessionLocal()
 try:
     # Check if table exists
-    result = db.execute(text("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name='plugin_assets')"))
+    result = db.execute(
+        text(
+            "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name='plugin_assets')"
+        )
+    )
     table_exists = result.fetchone()[0]
     print(f"Table exists: {table_exists}")
 
