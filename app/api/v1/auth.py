@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends, status, Request
 from fastapi.responses import RedirectResponse, JSONResponse
 from sqlalchemy.orm import Session
+from typing import Optional
 from authlib.integrations.base_client.errors import OAuthError
 from app.db.database import get_db
 from app.schemas.user import UserCreate, UserLogin, UserResponse
@@ -62,6 +63,7 @@ async def signup(user_data: UserCreate, db: Session = Depends(get_db)):
         httponly=True,
         secure=is_production,  # 프로덕션(DOMAIN 설정시)에서만 secure=True
         samesite="lax",  # 크로스 도메인 문제 해결을 위해 lax로 통일
+        path="/",
         max_age=24 * 60 * 60,  # 24시간
     )
 
@@ -73,6 +75,7 @@ async def signup(user_data: UserCreate, db: Session = Depends(get_db)):
         httponly=True,
         secure=is_production,  # 프로덕션(DOMAIN 설정시)에서만 secure=True
         samesite="lax",  # 크로스 도메인 문제 해결을 위해 lax로 통일
+        path="/",
         max_age=30 * 24 * 60 * 60,  # 30일
     )
 
@@ -128,6 +131,7 @@ async def login(user_data: UserLogin, db: Session = Depends(get_db)):
         httponly=True,
         secure=is_production,  # 프로덕션(DOMAIN 설정시)에서만 secure=True
         samesite="lax",  # 크로스 도메인 문제 해결을 위해 lax로 통일
+        path="/",
         max_age=24 * 60 * 60,  # 24시간
     )
 
@@ -139,6 +143,7 @@ async def login(user_data: UserLogin, db: Session = Depends(get_db)):
         httponly=True,
         secure=is_production,  # 프로덕션(DOMAIN 설정시)에서만 secure=True
         samesite="lax",  # 크로스 도메인 문제 해결을 위해 lax로 통일
+        path="/",
         max_age=30 * 24 * 60 * 60,  # 30일
     )
 
@@ -221,6 +226,21 @@ async def get_current_user_dependency(
     return user
 
 
+async def get_current_user_optional(
+    request: Request,
+    db: Session = Depends(get_db),
+) -> Optional[User]:
+    """
+    현재 로그인한 사용자를 반환하는 선택적 의존성 함수
+    - 로그인하지 않은 경우 None 반환 (에러 발생하지 않음)
+    """
+    try:
+        return await get_current_user_dependency(request, db)
+    except HTTPException:
+        # 인증 실패 시 None 반환 (에러 발생시키지 않음)
+        return None
+
+
 @router.get("/me", response_model=UserResponse)
 async def get_current_user(
     request: Request,
@@ -293,6 +313,7 @@ async def refresh_token(request: Request, db: Session = Depends(get_db)):
         httponly=True,
         secure=is_production,  # 프로덕션(DOMAIN 설정시)에서만 secure=True
         samesite="lax",  # 크로스 도메인 문제 해결을 위해 lax로 통일
+        path="/",
         max_age=24 * 60 * 60,  # 24시간
     )
 
@@ -300,7 +321,7 @@ async def refresh_token(request: Request, db: Session = Depends(get_db)):
 
 
 @router.post("/logout")
-async def logout():
+async def logout(request: Request):
     """
     로그아웃 - refresh token 쿠키 삭제
     """
@@ -310,21 +331,30 @@ async def logout():
     is_production = bool(settings.domain)
     cookie_domain = settings.domain if is_production else None
 
-    print(f"🚪 Logout - Deleting cookies with domain: {cookie_domain}, secure: {is_production}")
+    print(
+        "🚪 Logout - Incoming cookies:",
+        {key: bool(value) for key, value in request.cookies.items()},
+    )
+    print(f"🚪 Logout - Clearing cookies with domain: {cookie_domain}, secure: {is_production}")
 
-    # 쿠키 삭제 시 설정했던 것과 동일한 속성을 사용해야 함
-    response.delete_cookie(
-        key="refresh_token",
-        domain=cookie_domain,
-        secure=is_production,
-        samesite="lax"
-    )
-    response.delete_cookie(
-        key="access_token",
-        domain=cookie_domain,
-        secure=is_production,
-        samesite="lax"
-    )
+    # Access / Refresh 토큰은 HttpOnly 속성이 있으므로 동일 속성으로 무효화
+    for cookie_name in ("access_token", "refresh_token"):
+        response.set_cookie(
+            key=cookie_name,
+            value="",
+            domain=cookie_domain,
+            httponly=True,
+            secure=is_production,
+            samesite="lax",
+            path="/",
+            expires=0,
+            max_age=0,
+        )
+
+    # OAuth 세션 쿠키도 정리 (존재 여부에 따라)
+    response.delete_cookie("session", domain=cookie_domain, path="/")
+    response.delete_cookie("session", path="/")
+
     return response
 
 
@@ -455,6 +485,7 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
             httponly=True,
             secure=is_production,  # 프로덕션(DOMAIN 설정시)에서만 secure=True
             samesite="lax",  # 크로스 도메인 문제 해결을 위해 lax로 통일
+            path="/",
             max_age=24 * 60 * 60,  # 24시간
         )
 
@@ -466,6 +497,7 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
             httponly=True,
             secure=is_production,  # 프로덕션(DOMAIN 설정시)에서만 secure=True
             samesite="lax",  # 크로스 도메인 문제 해결을 위해 lax로 통일
+            path="/",
             max_age=30 * 24 * 60 * 60,  # 30일
         )
 
