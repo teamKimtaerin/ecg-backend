@@ -1,6 +1,6 @@
 import json
 import boto3
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from botocore.exceptions import ClientError, BotoCoreError
 from app.core.config import settings
 from app.utils.file_utils import response_file_manager
@@ -176,7 +176,7 @@ class BedrockService:
         """
         try:
             # 간단한 테스트 프롬프트로 연결 확인
-            result = self.invoke_claude(
+            self.invoke_claude(
                 prompt="안녕하세요",
                 max_tokens=50,
                 temperature=0.1,

@@ -1,4 +1,3 @@
-import os
 import json
 from datetime import datetime
 from pathlib import Path
@@ -117,11 +116,11 @@ class ResponseFileManager:
             # 메타데이터가 있으면 파일 상단에 추가
             content = ""
             if metadata:
-                content += f"# Metadata\n"
+                content += "# Metadata\n"
                 content += f"# Generated: {datetime.now().isoformat()}\n"
                 for key, value in metadata.items():
                     content += f"# {key}: {value}\n"
-                content += f"\n# Content\n\n"
+                content += "\n# Content\n\n"
 
             content += text
 
