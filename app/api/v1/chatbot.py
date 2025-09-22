@@ -1,13 +1,14 @@
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, status, Query
 from fastapi.responses import JSONResponse
 import time
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Optional, List
 
 from app.schemas.chatbot import (
     ChatBotRequest,
     ChatBotResponse,
-    ChatBotErrorResponse
+    ChatBotErrorResponse,
+    SavedFileInfo
 )
 from app.services.bedrock_service import bedrock_service
 
@@ -76,16 +77,17 @@ ECG 주요 기능:
         503: {"model": ChatBotErrorResponse, "description": "외부 서비스 이용 불가"},
     },
     summary="ChatBot 메시지 전송",
-    description="ECG ChatBot과 대화를 나누는 API 엔드포인트입니다. 자막 편집 관련 질문에 답변합니다."
+    description="ECG ChatBot과 대화를 나누는 API 엔드포인트입니다. 자막 편집 관련 질문에 답변하고 응답을 파일로 저장합니다."
 )
 async def send_chatbot_message(request: ChatBotRequest) -> ChatBotResponse:
     """
-    ChatBot에게 메시지를 전송하고 응답을 받습니다.
+    ChatBot에게 메시지를 전송하고 응답을 받습니다. 응답은 자동으로 output 폴더에 저장됩니다.
     
     - **prompt**: 사용자 입력 메시지 (필수)
     - **conversation_history**: 이전 대화 내역 (선택사항)
     - **max_tokens**: 최대 응답 토큰 수 (기본값: 1000)
     - **temperature**: 창의성 조절 (0.0-1.0, 기본값: 0.7)
+    - **save_response**: 응답을 파일로 저장할지 여부 (기본값: True)
     """
     start_time = time.time()
     
@@ -97,11 +99,12 @@ async def send_chatbot_message(request: ChatBotRequest) -> ChatBotResponse:
         
         logger.debug(f"Full prompt preview: {full_prompt[:200]}...")
         
-        # Bedrock 서비스 호출
+        # Bedrock 서비스 호출 (파일 저장 포함)
         result = bedrock_service.invoke_claude(
             prompt=full_prompt,
             max_tokens=request.max_tokens,
-            temperature=request.temperature
+            temperature=request.temperature,
+            save_response=request.save_response
         )
         
         # 처리 시간 계산
@@ -109,12 +112,22 @@ async def send_chatbot_message(request: ChatBotRequest) -> ChatBotResponse:
         
         logger.info(f"ChatBot response generated successfully in {processing_time_ms}ms")
         
-        return ChatBotResponse(
-            completion=result["completion"],
-            stop_reason=result["stop_reason"],
-            usage=result.get("usage"),
-            processing_time_ms=processing_time_ms
-        )
+        # 응답 구성
+        response_data = {
+            "completion": result["completion"],
+            "stop_reason": result["stop_reason"],
+            "usage": result.get("usage"),
+            "processing_time_ms": processing_time_ms
+        }
+        
+        # 파일 저장 정보 추가
+        if "saved_files" in result:
+            response_data["saved_files"] = result["saved_files"]
+        
+        if "save_error" in result:
+            response_data["save_error"] = result["save_error"]
+        
+        return ChatBotResponse(**response_data)
         
     except ValueError as e:
         logger.error(f"Validation error: {e}")
@@ -178,3 +191,74 @@ async def chatbot_health_check() -> Dict[str, Any]:
             "timestamp": time.time(),
             "service": "ECG ChatBot API"
         }
+
+
+@router.get(
+    "/saved-responses",
+    response_model=List[str],
+    summary="저장된 응답 파일 목록 조회",
+    description="저장된 ChatBot 응답 파일들의 목록을 조회합니다."
+)
+async def get_saved_responses(
+    pattern: Optional[str] = Query(default="bedrock_*", description="파일 패턴 필터")
+) -> List[str]:
+    """
+    저장된 응답 파일 목록을 조회합니다.
+    
+    - **pattern**: 파일 패턴 (예: "bedrock_*", "*.json")
+    """
+    try:
+        files = bedrock_service.get_saved_responses(pattern)
+        logger.info(f"Found {len(files)} saved response files")
+        return files
+    except Exception as e:
+        logger.error(f"Failed to get saved responses: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "error": "저장된 파일 목록을 가져오는데 실패했습니다",
+                "error_code": "FILE_LIST_ERROR",
+                "details": str(e)
+            }
+        )
+
+
+@router.get(
+    "/file-info/{filename}",
+    response_model=SavedFileInfo,
+    summary="파일 정보 조회",
+    description="특정 응답 파일의 상세 정보를 조회합니다."
+)
+async def get_file_info(filename: str) -> SavedFileInfo:
+    """
+    특정 파일의 정보를 조회합니다.
+    
+    - **filename**: 조회할 파일명
+    """
+    try:
+        file_info = bedrock_service.get_response_file_info(filename)
+        
+        if "error" in file_info:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={
+                    "error": "파일을 찾을 수 없습니다",
+                    "error_code": "FILE_NOT_FOUND",
+                    "details": file_info["error"]
+                }
+            )
+        
+        return SavedFileInfo(**file_info)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get file info for {filename}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "error": "파일 정보를 가져오는데 실패했습니다",
+                "error_code": "FILE_INFO_ERROR",
+                "details": str(e)
+            }
+        )

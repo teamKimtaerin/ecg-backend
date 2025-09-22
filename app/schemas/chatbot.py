@@ -11,6 +11,12 @@ class ChatMessage(BaseModel):
     timestamp: datetime = Field(..., description="메시지 생성 시간")
 
 
+class SavedFiles(BaseModel):
+    """저장된 파일 정보 스키마"""
+    json_file: Optional[str] = Field(default=None, description="JSON 형태로 저장된 파일 경로")
+    text_file: Optional[str] = Field(default=None, description="텍스트 형태로 저장된 파일 경로")
+
+
 class ChatBotRequest(BaseModel):
     """ChatBot API 요청 스키마"""
     prompt: str = Field(..., description="사용자 입력 프롬프트", min_length=1, max_length=5000)
@@ -22,6 +28,9 @@ class ChatBotRequest(BaseModel):
     )
     temperature: Optional[float] = Field(
         default=0.7, description="온도 (창의성 조절)", ge=0.0, le=1.0
+    )
+    save_response: Optional[bool] = Field(
+        default=True, description="응답을 파일로 저장할지 여부"
     )
 
     class Config:
@@ -43,7 +52,8 @@ class ChatBotRequest(BaseModel):
                     }
                 ],
                 "max_tokens": 1000,
-                "temperature": 0.7
+                "temperature": 0.7,
+                "save_response": True
             }
         }
 
@@ -58,6 +68,12 @@ class ChatBotResponse(BaseModel):
     processing_time_ms: Optional[int] = Field(
         default=None, description="처리 시간 (밀리초)"
     )
+    saved_files: Optional[SavedFiles] = Field(
+        default=None, description="저장된 파일 정보"
+    )
+    save_error: Optional[str] = Field(
+        default=None, description="파일 저장 중 발생한 오류"
+    )
 
     class Config:
         json_schema_extra = {
@@ -68,7 +84,31 @@ class ChatBotResponse(BaseModel):
                     "input_tokens": 50,
                     "output_tokens": 150
                 },
-                "processing_time_ms": 1500
+                "processing_time_ms": 1500,
+                "saved_files": {
+                    "json_file": "output/bedrock_response_20241201_143022.json",
+                    "text_file": "output/bedrock_completion_20241201_143022.txt"
+                }
+            }
+        }
+
+
+class SavedFileInfo(BaseModel):
+    """저장된 파일 정보 스키마"""
+    filename: str = Field(..., description="파일명")
+    path: str = Field(..., description="파일 경로")
+    size: int = Field(..., description="파일 크기 (바이트)")
+    created: str = Field(..., description="파일 생성 시간 (ISO 형식)")
+    modified: str = Field(..., description="파일 수정 시간 (ISO 형식)")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "filename": "bedrock_response_20241201_143022.json",
+                "path": "output/bedrock_response_20241201_143022.json",
+                "size": 1024,
+                "created": "2024-12-01T14:30:22.123456",
+                "modified": "2024-12-01T14:30:22.123456"
             }
         }
 

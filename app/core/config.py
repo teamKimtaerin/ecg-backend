@@ -1,4 +1,4 @@
-from typing import List, Union, Optional
+from typing import List, Union
 from pydantic_settings import BaseSettings
 from pydantic import Field, validator
 
@@ -128,7 +128,7 @@ class Settings(BaseSettings):
     )
 
     # Session Cookie Domain Settings
-    domain: Optional[str] = Field(
+    domain: str = Field(
         default=None,
         description="Session cookie domain for OAuth (e.g., ho-it.site)",
     )
