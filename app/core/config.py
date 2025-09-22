@@ -1,4 +1,4 @@
-from typing import List, Union
+from typing import List, Union, Optional
 from pydantic_settings import BaseSettings
 from pydantic import Field, validator
 
@@ -31,6 +31,17 @@ class Settings(BaseSettings):
     s3_bucket_name: str = Field(..., description="S3 bucket name for video storage")
     s3_presigned_url_expire: int = Field(
         default=3600, description="Presigned URL expiration time in seconds"
+    )
+
+    # AWS Bedrock Settings
+    aws_bedrock_region: str = Field(
+        default="us-east-1", description="AWS Bedrock region"
+    )
+    aws_bedrock_access_key_id: str = Field(
+        ..., description="AWS Bedrock Access Key ID"
+    )
+    aws_bedrock_secret_access_key: str = Field(
+        ..., description="AWS Bedrock Secret Access Key"
     )
 
     # ML Server Settings
@@ -117,7 +128,7 @@ class Settings(BaseSettings):
     )
 
     # Session Cookie Domain Settings
-    domain: str = Field(
+    domain: Optional[str] = Field(
         default=None,
         description="Session cookie domain for OAuth (e.g., ho-it.site)",
     )
