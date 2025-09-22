@@ -8,7 +8,7 @@ from .projects import router as projects_router
 from .render import router as render_router
 from .plugins import router as plugins_router
 from .assets import router as assets_router
-
+from .admin import router as admin_router
 
 api_router = APIRouter()
 
@@ -21,3 +21,4 @@ api_router.include_router(projects_router)
 api_router.include_router(render_router)
 api_router.include_router(plugins_router)
 api_router.include_router(assets_router)
+api_router.include_router(admin_router)
