@@ -36,6 +36,15 @@ class Settings(BaseSettings):
         default=3600, description="Presigned URL expiration time in seconds"
     )
 
+    # AWS Bedrock Settings
+    aws_bedrock_region: str = Field(
+        default="us-east-1", description="AWS Bedrock region"
+    )
+    aws_bedrock_access_key_id: str = Field(..., description="AWS Bedrock Access Key ID")
+    aws_bedrock_secret_access_key: str = Field(
+        ..., description="AWS Bedrock Secret Access Key"
+    )
+
     # ML Server Settings
     MODEL_SERVER_URL: str = Field(
         ..., description="ML server URL", alias="MODEL_SERVER_URL"

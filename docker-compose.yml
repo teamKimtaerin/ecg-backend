@@ -28,11 +28,13 @@ services:
         MODE: ${MODE:-dev}
     ports:
       - "${BACKEND_PORT:-8000}:8000"
+    env_file:
+      - .env
     environment:
       # FastAPI 환경변수
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
-      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,https://d31nzc58rhgh3i.cloudfront.net}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,https://ho-it.site}
       - DATABASE_URL=${DATABASE_URL:-postgresql://ecg_user:ecg_password@postgres:5432/ecg_db}
       # AWS S3 환경변수
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
