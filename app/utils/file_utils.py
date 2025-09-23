@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 class ResponseFileManager:
     """응답 파일 관리 클래스"""
 
-    def __init__(self, base_dir: str = "output"):
+    def __init__(self, base_dir: str = "/tmp/output"):
         """
         ResponseFileManager 초기화
 
