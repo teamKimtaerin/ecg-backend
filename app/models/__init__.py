@@ -5,6 +5,7 @@ from .render_usage_stats import RenderUsageStats, RenderMonthlyStats
 from .project import Project
 from .clip import Clip
 from .word import Word
+from .plugin_asset import PluginAsset
 
 __all__ = [
     "User",
@@ -15,4 +16,5 @@ __all__ = [
     "Project",
     "Clip",
     "Word",
+    "PluginAsset",
 ]
