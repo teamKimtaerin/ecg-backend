@@ -1,6 +1,5 @@
 from fastapi import APIRouter
 from .video import router as video_router
-from .auth import router as auth_router
 from .ml_video import router as ml_video_router
 from .ml import router as ml_router
 from .results import router as results_router
@@ -14,7 +13,6 @@ from .admin import router as admin_router
 api_router = APIRouter(prefix="/api/v1")
 
 api_router.include_router(video_router)
-api_router.include_router(auth_router)
 api_router.include_router(ml_video_router)
 api_router.include_router(ml_router)
 api_router.include_router(results_router)

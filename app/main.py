@@ -6,6 +6,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from app.api.v1.routers import api_router
+from app.api.v1.auth import router as auth_router
 from app.core.config import settings
 import os
 import logging
@@ -213,7 +214,8 @@ app.add_middleware(
 )
 
 # API 라우터 등록
-app.include_router(api_router)
+app.include_router(auth_router)  # 인증 라우터는 별도 등록 (/api/auth)
+app.include_router(api_router)   # 나머지 API는 /api/v1 prefix
 
 
 @app.get("/")
