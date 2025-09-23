@@ -23,7 +23,7 @@ from app.schemas.ml_response import (
 # 로거 설정
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1/ml", tags=["ml"])
+router = APIRouter(prefix="/ml", tags=["ml"])
 
 
 # 프론트엔드 요구 스키마

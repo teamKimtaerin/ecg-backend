@@ -6,7 +6,7 @@ from app.db.database import get_db
 from app.models.plugin_asset import PluginAsset
 from app.schemas.asset import AssetResponse, AssetsListResponse, CategoryResponse
 
-router = APIRouter(prefix="/api/v1/assets", tags=["Assets"])
+router = APIRouter(prefix="/assets", tags=["Assets"])
 
 @router.get("/", response_model=AssetsListResponse)
 async def get_assets(

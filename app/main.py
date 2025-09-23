@@ -7,6 +7,11 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from app.api.v1.routers import api_router
 from app.api.v1.auth import router as auth_router
+from app.api.v1.render import router as render_router
+from app.api.v1.results import router as results_router
+from app.api.v1.projects import router as projects_router
+from app.api.v1.ml_video import router as ml_video_router
+from app.api.v1.video import router as video_router
 from app.core.config import settings
 import os
 import logging
@@ -213,9 +218,14 @@ app.add_middleware(
     expose_headers=["*"],  # 모든 헤더를 프론트엔드에 노출
 )
 
-# API 라우터 등록
-app.include_router(auth_router)  # 인증 라우터는 별도 등록 (/api/auth)
-app.include_router(api_router)   # 나머지 API는 /api/v1 prefix
+# API 라우터 등록 - 기존 경로 유지를 위해 별도 등록
+app.include_router(auth_router)      # /api/auth
+app.include_router(render_router)    # /api/render
+app.include_router(results_router)   # /api
+app.include_router(projects_router)  # /api/projects
+app.include_router(ml_video_router)  # /api/upload-video
+app.include_router(video_router)     # /api/upload-video
+app.include_router(api_router)       # /api/v1 (assets, ml, admin, plugins, chatbot)
 
 
 @app.get("/")

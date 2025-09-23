@@ -5,7 +5,7 @@ from app.models.plugin_asset import PluginAsset
 from datetime import datetime
 from dateutil import parser
 
-router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
+router = APIRouter(prefix="/admin", tags=["admin"])
 
 # Sample JSON data for migration (same as assets-database.json)
 SAMPLE_ASSETS_DATA = [
