@@ -377,3 +377,4 @@ git commit -m "Fix authentication bug"
 
 # Trigger deployment Fri Sep 12 14:37:23 KST 2025
 # CORS 설정 업데이트 트리거 - Wed Sep 24 01:27:21 KST 2025
+# DATABASE_URL 환경변수 테스트
