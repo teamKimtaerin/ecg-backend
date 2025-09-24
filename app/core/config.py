@@ -30,7 +30,8 @@ class Settings(BaseSettings):
     # S3 Settings
     s3_bucket_name: str = Field(..., description="S3 bucket name for video storage")
     s3_plugin_bucket_name: str = Field(
-        default="ecg-project-plugin-server", description="S3 bucket name for plugin files"
+        default="ecg-project-plugin-server",
+        description="S3 bucket name for plugin files",
     )
     s3_presigned_url_expire: int = Field(
         default=3600, description="Presigned URL expiration time in seconds"

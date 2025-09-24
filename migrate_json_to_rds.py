@@ -15,6 +15,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from app.db.database import engine, SessionLocal
 from app.models.plugin_asset import PluginAsset
 
+
 def migrate_json_to_rds():
     """Migrate JSON assets data to AWS RDS plugin_assets table."""
 
@@ -26,14 +27,15 @@ def migrate_json_to_rds():
         return
 
     # JSON 데이터 읽기
-    with open(json_file_path, 'r', encoding='utf-8') as f:
+    with open(json_file_path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
-    assets_data = data.get('assets', [])
+    assets_data = data.get("assets", [])
     print(f"📋 Found {len(assets_data)} assets in JSON file")
 
     # Create tables if not exist
     from app.models.plugin_asset import Base
+
     Base.metadata.create_all(bind=engine)
 
     # Create session
@@ -45,7 +47,7 @@ def migrate_json_to_rds():
         if existing_count > 0:
             print(f"⚠️  Found {existing_count} existing assets in RDS")
             response = input("Clear existing data and migrate? (y/N): ")
-            if response.lower() != 'y':
+            if response.lower() != "y":
                 print("Migration cancelled")
                 return
 
@@ -60,47 +62,53 @@ def migrate_json_to_rds():
             try:
                 # Convert JSON field names to database column names
                 db_data = {
-                    'id': asset_data.get('id'),
-                    'title': asset_data.get('title'),
-                    'category': asset_data.get('category'),
-                    'description': asset_data.get('description'),
-                    'plugin_key': asset_data.get('pluginKey'),
-                    'thumbnail_path': asset_data.get('thumbnailPath', 'assets/thumbnail.svg'),
-                    'icon_name': asset_data.get('iconName'),
-                    'author_id': asset_data.get('authorId'),
-                    'author_name': asset_data.get('authorName'),
-                    'is_pro': asset_data.get('isPro', False),
-                    'price': float(asset_data.get('price', 0)),
-                    'rating': float(asset_data.get('rating', 0)),
-                    'downloads': int(asset_data.get('downloads', 0)),
-                    'likes': int(asset_data.get('likes', 0)),
-                    'usage_count': int(asset_data.get('usageCount', 0)),
-                    'tags': asset_data.get('tags', []),
-                    'is_favorite': asset_data.get('isFavorite', False),
+                    "id": asset_data.get("id"),
+                    "title": asset_data.get("title"),
+                    "category": asset_data.get("category"),
+                    "description": asset_data.get("description"),
+                    "plugin_key": asset_data.get("pluginKey"),
+                    "thumbnail_path": asset_data.get(
+                        "thumbnailPath", "assets/thumbnail.svg"
+                    ),
+                    "icon_name": asset_data.get("iconName"),
+                    "author_id": asset_data.get("authorId"),
+                    "author_name": asset_data.get("authorName"),
+                    "is_pro": asset_data.get("isPro", False),
+                    "price": float(asset_data.get("price", 0)),
+                    "rating": float(asset_data.get("rating", 0)),
+                    "downloads": int(asset_data.get("downloads", 0)),
+                    "likes": int(asset_data.get("likes", 0)),
+                    "usage_count": int(asset_data.get("usageCount", 0)),
+                    "tags": asset_data.get("tags", []),
+                    "is_favorite": asset_data.get("isFavorite", False),
                 }
 
                 # Parse timestamps
-                if asset_data.get('createdAt'):
+                if asset_data.get("createdAt"):
                     try:
-                        db_data['created_at'] = parser.parse(asset_data['createdAt'])
+                        db_data["created_at"] = parser.parse(asset_data["createdAt"])
                     except:
-                        db_data['created_at'] = datetime.utcnow()
+                        db_data["created_at"] = datetime.utcnow()
 
-                if asset_data.get('updatedAt'):
+                if asset_data.get("updatedAt"):
                     try:
-                        db_data['updated_at'] = parser.parse(asset_data['updatedAt'])
+                        db_data["updated_at"] = parser.parse(asset_data["updatedAt"])
                     except:
-                        db_data['updated_at'] = datetime.utcnow()
+                        db_data["updated_at"] = datetime.utcnow()
 
                 # Create PluginAsset instance
                 asset = PluginAsset(**db_data)
                 db.add(asset)
                 migrated_count += 1
 
-                print(f"✅ Migrated: {asset_data.get('title')} ({asset_data.get('pluginKey')})")
+                print(
+                    f"✅ Migrated: {asset_data.get('title')} ({asset_data.get('pluginKey')})"
+                )
 
             except Exception as e:
-                print(f"❌ Failed to migrate asset {asset_data.get('title', 'Unknown')}: {e}")
+                print(
+                    f"❌ Failed to migrate asset {asset_data.get('title', 'Unknown')}: {e}"
+                )
                 continue
 
         # Commit all changes
@@ -123,6 +131,7 @@ def migrate_json_to_rds():
         raise
     finally:
         db.close()
+
 
 if __name__ == "__main__":
     print("🚀 Starting JSON to RDS migration...")

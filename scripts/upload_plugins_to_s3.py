@@ -41,7 +41,7 @@ def create_bucket_if_not_exists(s3_client, bucket_name, region):
                 else:
                     s3_client.create_bucket(
                         Bucket=bucket_name,
-                        CreateBucketConfiguration={"LocationConstraint": region}
+                        CreateBucketConfiguration={"LocationConstraint": region},
                     )
                 print(f"✅ 버킷 '{bucket_name}'을 생성했습니다.")
             except ClientError as create_error:
@@ -60,19 +60,18 @@ def setup_cors_policy(s3_client, bucket_name):
                 "AllowedOrigins": [
                     "http://localhost:3000",
                     "https://ho-it.site",
-                    "https://*.ho-it.site"
+                    "https://*.ho-it.site",
                 ],
                 "AllowedMethods": ["GET", "HEAD"],
                 "AllowedHeaders": ["*"],
-                "MaxAgeSeconds": 3600
+                "MaxAgeSeconds": 3600,
             }
         ]
     }
 
     try:
         s3_client.put_bucket_cors(
-            Bucket=bucket_name,
-            CORSConfiguration=cors_configuration
+            Bucket=bucket_name, CORSConfiguration=cors_configuration
         )
         print("✅ CORS 정책을 설정했습니다.")
     except ClientError as e:
@@ -103,7 +102,7 @@ def upload_plugin_files(s3_client, bucket_name, source_path):
                         str(manifest_file),
                         bucket_name,
                         s3_key,
-                        ExtraArgs={"ContentType": "application/json"}
+                        ExtraArgs={"ContentType": "application/json"},
                     )
                     print(f"✅ 업로드됨: {s3_key}")
                     uploaded_count += 1
@@ -119,7 +118,7 @@ def upload_plugin_files(s3_client, bucket_name, source_path):
                         str(entry_file),
                         bucket_name,
                         s3_key,
-                        ExtraArgs={"ContentType": "text/javascript"}
+                        ExtraArgs={"ContentType": "text/javascript"},
                     )
                     print(f"✅ 업로드됨: {s3_key}")
                     uploaded_count += 1

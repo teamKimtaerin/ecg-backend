@@ -1,12 +1,13 @@
 from fastapi import APIRouter, HTTPException, Depends, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import distinct
-from typing import List, Optional
+from typing import Optional
 from app.db.database import get_db
 from app.models.plugin_asset import PluginAsset
 from app.schemas.asset import AssetResponse, AssetsListResponse, CategoryResponse
 
 router = APIRouter(prefix="/assets", tags=["Assets"])
+
 
 @router.get("/", response_model=AssetsListResponse)
 async def get_assets(
@@ -14,7 +15,7 @@ async def get_assets(
     is_pro: Optional[bool] = Query(None, description="Filter by pro status"),
     limit: Optional[int] = Query(100, description="Maximum number of assets to return"),
     offset: Optional[int] = Query(0, description="Number of assets to skip"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     퍼블릭 에셋 목록 조회 API (인증 불필요)
@@ -32,12 +33,18 @@ async def get_assets(
             query = query.filter(PluginAsset.is_pro == is_pro)
 
         # 정렬 및 페이지네이션
-        assets = query.order_by(PluginAsset.created_at.desc()).offset(offset).limit(limit).all()
+        assets = (
+            query.order_by(PluginAsset.created_at.desc())
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
 
         return AssetsListResponse(assets=assets)
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch assets: {str(e)}")
+
 
 @router.get("/categories", response_model=CategoryResponse)
 async def get_categories(db: Session = Depends(get_db)):
@@ -51,13 +58,13 @@ async def get_categories(db: Session = Depends(get_db)):
         return CategoryResponse(categories=category_list)
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch categories: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to fetch categories: {str(e)}"
+        )
+
 
 @router.get("/{asset_id}", response_model=AssetResponse)
-async def get_asset_detail(
-    asset_id: int,
-    db: Session = Depends(get_db)
-):
+async def get_asset_detail(asset_id: int, db: Session = Depends(get_db)):
     """
     특정 에셋 상세 정보 조회 API (인증 불필요)
     """
@@ -72,4 +79,6 @@ async def get_asset_detail(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch asset detail: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to fetch asset detail: {str(e)}"
+        )
