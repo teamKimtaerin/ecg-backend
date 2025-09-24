@@ -131,7 +131,7 @@ async def startup_event():
 app.add_middleware(RequestLoggingMiddleware)
 
 
-# CloudFront 프록시 환경에서의 OAuth 세션 처리를 위한 미들웨어
+# CloudFront 프록시 환경에서의 HTTPS 리디렉트 처리를 위한 미들웨어
 class CloudFrontProxyMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         # CloudFront 프록시 헤더 정보를 사용해 실제 스키마와 호스트 설정
@@ -146,7 +146,28 @@ class CloudFrontProxyMiddleware(BaseHTTPMiddleware):
                 new_url = str(request.url).replace("http://", "https://")
                 request._url = new_url
 
+        # HTTPS 리디렉트가 필요한 경우 HTTPS URL로 수정
+        from starlette.datastructures import URL
+        
+        # 원본 요청이 HTTPS인지 확인 (CloudFront를 통해 온 경우)
+        is_https_request = (
+            request.headers.get("x-forwarded-proto") == "https" or
+            "cloudfront" in request.headers.get("via", "").lower()
+        )
+        
         response = await call_next(request)
+        
+        # 307 리디렉트 응답에서 Location 헤더를 HTTPS로 수정
+        if (response.status_code == 307 and 
+            is_https_request and 
+            "location" in response.headers):
+            
+            location = response.headers["location"]
+            if location.startswith("http://"):
+                # HTTP를 HTTPS로 변경
+                https_location = location.replace("http://", "https://", 1)
+                response.headers["location"] = https_location
+                logger.info(f"Fixed redirect: {location} -> {https_location}")
 
         # OAuth 관련 요청에서 세션 쿠키 도메인 설정
         if "/api/auth/google" in str(request.url) and settings.domain:
