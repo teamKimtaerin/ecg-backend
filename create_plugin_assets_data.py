@@ -5,20 +5,20 @@ Create plugin assets table and insert sample data
 
 import os
 import sys
-from datetime import datetime
 
 # Add the app directory to Python path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from app.db.database import engine, SessionLocal
 from app.models.plugin_asset import PluginAsset
-from sqlalchemy import text
+
 
 def create_table_and_data():
     """Create plugin_assets table and insert sample data."""
 
     # Create tables
     from app.models.plugin_asset import Base
+
     Base.metadata.create_all(bind=engine)
     print("✅ plugin_assets table created")
 
@@ -29,7 +29,9 @@ def create_table_and_data():
         # Check if data already exists
         existing_count = db.query(PluginAsset).count()
         if existing_count > 0:
-            print(f"⚠️  Found {existing_count} existing assets, skipping data insertion")
+            print(
+                f"⚠️  Found {existing_count} existing assets, skipping data insertion"
+            )
             return
 
         # Sample plugin assets data
@@ -49,7 +51,7 @@ def create_table_and_data():
                 "downloads": 1243,
                 "likes": 892,
                 "usage_count": 2156,
-                "tags": ["text", "rotation", "spin", "classic", "gsap", "animation"]
+                "tags": ["text", "rotation", "spin", "classic", "gsap", "animation"],
             },
             {
                 "title": "Slide Up Effect",
@@ -66,7 +68,7 @@ def create_table_and_data():
                 "downloads": 987,
                 "likes": 654,
                 "usage_count": 1845,
-                "tags": ["text", "slide", "smooth", "elegant", "gsap"]
+                "tags": ["text", "slide", "smooth", "elegant", "gsap"],
             },
             {
                 "title": "Bounce Animation",
@@ -83,7 +85,7 @@ def create_table_and_data():
                 "downloads": 756,
                 "likes": 423,
                 "usage_count": 1234,
-                "tags": ["text", "bounce", "fun", "playful", "gsap"]
+                "tags": ["text", "bounce", "fun", "playful", "gsap"],
             },
             {
                 "title": "Glitch Effect Pro",
@@ -100,7 +102,7 @@ def create_table_and_data():
                 "downloads": 432,
                 "likes": 298,
                 "usage_count": 876,
-                "tags": ["text", "glitch", "digital", "modern", "pro"]
+                "tags": ["text", "glitch", "digital", "modern", "pro"],
             },
             {
                 "title": "Typewriter Effect",
@@ -117,8 +119,8 @@ def create_table_and_data():
                 "downloads": 1567,
                 "likes": 1234,
                 "usage_count": 2890,
-                "tags": ["text", "typewriter", "classic", "typing", "gsap"]
-            }
+                "tags": ["text", "typewriter", "classic", "typing", "gsap"],
+            },
         ]
 
         # Insert sample data
@@ -139,6 +141,7 @@ def create_table_and_data():
         raise
     finally:
         db.close()
+
 
 if __name__ == "__main__":
     print("🚀 Creating plugin assets table and data...")

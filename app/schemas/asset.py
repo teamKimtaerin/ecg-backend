@@ -2,12 +2,15 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime
 
+
 class AssetBase(BaseModel):
     title: str
     category: str
     description: Optional[str] = None
     plugin_key: str = Field(alias="pluginKey")
-    thumbnail_path: Optional[str] = Field(default="assets/thumbnail.svg", alias="thumbnailPath")
+    thumbnail_path: Optional[str] = Field(
+        default="assets/thumbnail.svg", alias="thumbnailPath"
+    )
     icon_name: Optional[str] = Field(default=None, alias="iconName")
     author_id: str = Field(alias="authorId")
     author_name: str = Field(alias="authorName")
@@ -20,6 +23,7 @@ class AssetBase(BaseModel):
     tags: Optional[List[str]] = []
     is_favorite: Optional[bool] = Field(default=False, alias="isFavorite")
 
+
 class AssetResponse(AssetBase):
     id: int
     created_at: Optional[datetime] = Field(default=None, alias="createdAt")
@@ -29,8 +33,10 @@ class AssetResponse(AssetBase):
         from_attributes = True
         populate_by_name = True
 
+
 class AssetsListResponse(BaseModel):
     assets: List[AssetResponse]
+
 
 class CategoryResponse(BaseModel):
     categories: List[str]

@@ -147,21 +147,21 @@ class CloudFrontProxyMiddleware(BaseHTTPMiddleware):
                 request._url = new_url
 
         # HTTPS 리디렉트가 필요한 경우 HTTPS URL로 수정
-        from starlette.datastructures import URL
-        
+
         # 원본 요청이 HTTPS인지 확인 (CloudFront를 통해 온 경우)
         is_https_request = (
-            request.headers.get("x-forwarded-proto") == "https" or
-            "cloudfront" in request.headers.get("via", "").lower()
+            request.headers.get("x-forwarded-proto") == "https"
+            or "cloudfront" in request.headers.get("via", "").lower()
         )
-        
+
         response = await call_next(request)
-        
+
         # 307 리디렉트 응답에서 Location 헤더를 HTTPS로 수정
-        if (response.status_code == 307 and 
-            is_https_request and 
-            "location" in response.headers):
-            
+        if (
+            response.status_code == 307
+            and is_https_request
+            and "location" in response.headers
+        ):
             location = response.headers["location"]
             if location.startswith("http://"):
                 # HTTP를 HTTPS로 변경
@@ -240,13 +240,13 @@ app.add_middleware(
 )
 
 # API 라우터 등록 - 기존 경로 유지를 위해 별도 등록
-app.include_router(auth_router)      # /api/auth
-app.include_router(render_router)    # /api/render
-app.include_router(results_router)   # /api
+app.include_router(auth_router)  # /api/auth
+app.include_router(render_router)  # /api/render
+app.include_router(results_router)  # /api
 app.include_router(projects_router)  # /api/projects
 app.include_router(ml_video_router)  # /api/upload-video
-app.include_router(video_router)     # /api/upload-video
-app.include_router(api_router)       # /api/v1 (assets, ml, admin, plugins, chatbot)
+app.include_router(video_router)  # /api/upload-video
+app.include_router(api_router)  # /api/v1 (assets, ml, admin, plugins, chatbot)
 
 
 @app.get("/")
