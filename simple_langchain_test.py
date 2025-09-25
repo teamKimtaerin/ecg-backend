@@ -9,7 +9,7 @@ def test_langchain_imports():
     print("🔍 Testing LangChain imports...")
 
     try:
-        import langchain
+        import langchain  # type: ignore
 
         print(f"✅ LangChain version: {langchain.__version__}")
     except ImportError as e:
@@ -17,19 +17,20 @@ def test_langchain_imports():
         return False
 
     try:
-        from langchain_aws import ChatBedrock
+        from langchain_aws import ChatBedrock  # type: ignore
 
         # Test basic usage to avoid unused import warnings
-        ChatBedrock
+        _ = ChatBedrock
         print("✅ ChatBedrock import successful")
     except ImportError as e:
         print(f"❌ ChatBedrock import failed: {e}")
         return False
 
     try:
-        from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
-        from langchain_core.prompts import ChatPromptTemplate
-        from langchain_core.output_parsers import StrOutputParser
+        # Import and test LangChain core components
+        from langchain_core.messages import HumanMessage, AIMessage, SystemMessage  # type: ignore
+        from langchain_core.prompts import ChatPromptTemplate  # type: ignore
+        from langchain_core.output_parsers import StrOutputParser  # type: ignore
 
         # Test basic usage to avoid unused import warnings
         HumanMessage(content="test")
@@ -51,13 +52,13 @@ def test_langchain_components():
     print("\n🔧 Testing LangChain components...")
 
     try:
-        from langchain_core.prompts import (
+        from langchain_core.prompts import (  # type: ignore
             ChatPromptTemplate,
             SystemMessagePromptTemplate,
             HumanMessagePromptTemplate,
         )
-        from langchain_core.output_parsers import StrOutputParser
-        from langchain_core.messages import HumanMessage, AIMessage
+        from langchain_core.output_parsers import StrOutputParser  # type: ignore
+        from langchain_core.messages import HumanMessage, AIMessage  # type: ignore
 
         # Test prompt template creation
         system_template = "You are a helpful AI assistant for ECG caption editing tool."
@@ -90,9 +91,9 @@ def test_chain_construction():
     print("\n⛓️  Testing LangChain chain construction...")
 
     try:
-        from langchain_core.prompts import ChatPromptTemplate
-        from langchain_core.output_parsers import StrOutputParser
-        from langchain_core.runnables import RunnableLambda
+        from langchain_core.prompts import ChatPromptTemplate  # type: ignore
+        from langchain_core.output_parsers import StrOutputParser  # type: ignore
+        from langchain_core.runnables import RunnableLambda  # type: ignore
 
         # Create a simple chain without LLM
         prompt = ChatPromptTemplate.from_template("Echo: {input}")
@@ -108,7 +109,7 @@ def test_chain_construction():
         StrOutputParser()
 
         # Test chain construction (without actual LLM)
-        prompt | RunnableLambda(mock_llm) | RunnableLambda(lambda x: x)
+        _ = prompt | RunnableLambda(mock_llm) | RunnableLambda(lambda x: x)
         print("✅ Chain construction successful (without LLM)")
 
         return True

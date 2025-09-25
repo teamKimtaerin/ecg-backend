@@ -60,11 +60,16 @@ ECG 주요 기능:
 - GPU 가속 렌더링
 - 드래그 앤 드롭 편집"""
 
-            # 프롬프트 템플릿 구성
+            # 프롬프트 템플릿 구성 (시나리오 파일 포함)
             self.prompt_template = ChatPromptTemplate.from_messages(
                 [
                     SystemMessagePromptTemplate.from_template(self.system_template),
-                    HumanMessagePromptTemplate.from_template("{input}"),
+                    HumanMessagePromptTemplate.from_template(
+                        "사용자 요청: {input}\n\n"
+                        "현재 시나리오 파일 (자막 및 스타일링 데이터):\n"
+                        "```json\n{scenario_data}\n```\n\n"
+                        "위 시나리오 파일을 참고하여 사용자의 요청을 처리해주세요."
+                    ),
                 ]
             )
 
@@ -100,6 +105,7 @@ ECG 주요 기능:
         self,
         prompt: str,
         conversation_history: Optional[List[ChatMessage]] = None,
+        scenario_data: Optional[Dict[str, Any]] = None,
         max_tokens: int = 1000,
         temperature: float = 0.7,
         save_response: bool = True,
@@ -130,6 +136,53 @@ ECG 주요 기능:
                 f"Invoking Claude via LangChain: max_tokens={max_tokens}, temp={temperature}"
             )
 
+            # 시나리오 데이터가 있으면 직접 편집 체인 사용
+            if scenario_data:
+                logger.info("Using direct subtitle edit chain for scenario data")
+                try:
+                    edit_result = self.create_direct_subtitle_edit_chain(
+                        user_message=prompt,
+                        scenario_data=scenario_data,
+                        max_tokens=max_tokens,
+                        temperature=temperature
+                    )
+                    
+                    # 편집 결과를 기본 응답 형식으로 변환
+                    return {
+                        "completion": edit_result.get("explanation", "편집이 완료되었습니다."),
+                        "stop_reason": "end_turn",
+                        "usage": {
+                            "input_tokens": len(prompt.split()),
+                            "output_tokens": len(str(edit_result).split()),
+                        },
+                        "model_id": self.llm.model_id,
+                        "langchain_used": True,
+                        "edit_result": edit_result,  # 실제 편집 결과 포함
+                        "json_patches": edit_result.get("patches", []),  # JSON patch 정보
+                        "request_params": {
+                            "max_tokens": max_tokens,
+                            "temperature": temperature,
+                            "prompt_length": len(prompt),
+                            "has_scenario_data": True,
+                        },
+                    }
+                except Exception as e:
+                    logger.error(f"Direct edit chain failed, falling back to standard chain: {e}")
+                    # 편집 체인 실패시 기본 체인으로 fallback
+            
+            # 기본 체인 사용 (시나리오 데이터 없거나 편집 체인 실패시)
+            scenario_json = ""
+            if scenario_data:
+                try:
+                    import json
+                    scenario_json = json.dumps(scenario_data, indent=2, ensure_ascii=False)
+                    logger.info(f"Scenario data included: {len(scenario_json)} characters")
+                except Exception as e:
+                    logger.warning(f"Failed to serialize scenario data: {e}")
+                    scenario_json = "시나리오 데이터 처리 중 오류 발생"
+            else:
+                scenario_json = "시나리오 데이터 없음"
+
             # 대화 히스토리가 있는 경우 메모리 사용
             if conversation_history and len(conversation_history) > 0:
                 # 메모리 초기화
@@ -145,21 +198,26 @@ ECG 주요 기능:
                     elif isinstance(message, AIMessage):
                         memory.chat_memory.add_ai_message(message.content)
 
-                # 대화 히스토리를 포함한 프롬프트 템플릿
+                # 대화 히스토리를 포함한 프롬프트 템플릿 (시나리오 데이터 포함)
                 history_prompt = ChatPromptTemplate.from_messages(
                     [
                         SystemMessagePromptTemplate.from_template(self.system_template),
                         *messages,
-                        HumanMessagePromptTemplate.from_template("{input}"),
+                        HumanMessagePromptTemplate.from_template(
+                            "사용자 요청: {input}\n\n"
+                            "현재 시나리오 파일 (자막 및 스타일링 데이터):\n"
+                            "```json\n{scenario_data}\n```\n\n"
+                            "위 시나리오 파일을 참고하여 사용자의 요청을 처리해주세요."
+                        )
                     ]
                 )
 
                 # 히스토리 포함 체인
                 history_chain = history_prompt | self.llm | self.output_parser
-                completion = history_chain.invoke({"input": prompt})
+                completion = history_chain.invoke({"input": prompt, "scenario_data": scenario_json})
             else:
-                # 단순 체인 사용
-                completion = self.chain.invoke({"input": prompt})
+                # 시나리오 데이터와 함께 단순 체인 사용
+                completion = self.chain.invoke({"input": prompt, "scenario_data": scenario_json})
 
             logger.info("LangChain Claude invocation successful")
             logger.debug(f"Response preview: {completion[:200]}...")
@@ -779,6 +837,327 @@ JSON patch 형태로 수정사항을 제공해주세요. 기존 구조를 유지
         except Exception as e:
             logger.error(f"Subtitle animation chain failed: {e}")
             raise Exception(f"자막 애니메이션 체인 실행 실패: {str(e)}")
+
+    def create_direct_subtitle_edit_chain(
+        self,
+        user_message: str,
+        scenario_data: Dict[str, Any],
+        max_tokens: int = 1500,
+        temperature: float = 0.1
+    ) -> Dict[str, Any]:
+        """
+        사용자 요청에 따라 시나리오 데이터를 직접 수정하는 체인
+        
+        Args:
+            user_message: 사용자 편집 요청
+            scenario_data: 현재 시나리오 JSON 데이터
+            max_tokens: 최대 토큰 수
+            temperature: 창의성 조절 (정확성을 위해 낮게 설정)
+            
+        Returns:
+            Dict: JSON patch와 편집 결과
+        """
+        try:
+            logger.info("Starting direct subtitle edit chain")
+            
+            # 1단계: 요청 유형 분류
+            classification_prompt = f"""사용자의 자막 편집 요청을 분석해주세요:
+
+사용자 요청: "{user_message}"
+
+분류 기준:
+- "text_edit": 자막 텍스트 수정 (오탈자, 번역, 단어 변경)
+- "style_edit": 자막 스타일 수정 (색상, 크기, 위치)  
+- "animation_request": 애니메이션 효과 추가/수정
+- "info_request": 단순 정보 질문
+
+JSON 형태로 응답:
+{{"classification": "분류결과", "confidence": 0.95}}"""
+
+            classification_result = self.invoke_claude_with_chain(
+                prompt=classification_prompt,
+                max_tokens=200,
+                temperature=0.1,
+                save_response=False
+            )
+            
+            # 분류 결과 파싱
+            try:
+                import json
+                classification_data = json.loads(classification_result["completion"])
+                classification = classification_data.get("classification", "text_edit")
+            except (json.JSONDecodeError, KeyError):
+                classification = "text_edit"  # 기본값
+            
+            logger.info(f"Request classified as: {classification}")
+            
+            # 2단계: 분류에 따른 편집 실행
+            if classification == "text_edit":
+                return self._handle_text_edit(user_message, scenario_data, max_tokens, temperature)
+            elif classification == "style_edit":
+                return self._handle_style_edit(user_message, scenario_data, max_tokens, temperature)
+            elif classification == "animation_request":
+                return self._handle_animation_request(user_message, scenario_data, max_tokens, temperature)
+            else:
+                return self._handle_info_request(user_message, max_tokens, temperature)
+                
+        except Exception as e:
+            logger.error(f"Direct subtitle edit chain failed: {e}")
+            return {
+                "type": "error",
+                "error": f"편집 처리 중 오류가 발생했습니다: {str(e)}",
+                "success": False,
+                "langchain_used": True
+            }
+
+    def _handle_text_edit(
+        self, 
+        user_message: str, 
+        scenario_data: Dict[str, Any], 
+        max_tokens: int, 
+        temperature: float
+    ) -> Dict[str, Any]:
+        """텍스트 수정 처리"""
+        try:
+            import json
+            scenario_json = json.dumps(scenario_data, indent=2, ensure_ascii=False)
+            
+            edit_prompt = f"""ECG 시나리오에서 자막 텍스트를 수정해주세요.
+
+사용자 요청: "{user_message}"
+
+현재 시나리오:
+```json
+{scenario_json}
+```
+
+작업:
+1. 수정할 자막을 찾기 (첫 번째, 두 번째, 특정 단어 등)
+2. 요청에 맞게 텍스트 수정
+3. JSON patch 생성
+
+응답 형식 (JSON만):
+{{
+    "type": "text_edit",
+    "patches": [
+        {{"op": "replace", "path": "/cues/0/root/children/0/text", "value": "수정된 텍스트"}}
+    ],
+    "explanation": "수정 설명",
+    "success": true
+}}"""
+
+            result = self.invoke_claude_with_chain(
+                prompt=edit_prompt,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                save_response=False
+            )
+            
+            # JSON 응답 파싱 시도
+            try:
+                import json
+                edit_result = json.loads(result["completion"])
+                edit_result["langchain_used"] = True
+                return edit_result
+            except json.JSONDecodeError:
+                return {
+                    "type": "text_edit",
+                    "patches": [],
+                    "explanation": result["completion"],
+                    "success": False,
+                    "error": "JSON 파싱 실패",
+                    "langchain_used": True
+                }
+                
+        except Exception as e:
+            logger.error(f"Text edit handling failed: {e}")
+            return {
+                "type": "text_edit", 
+                "error": f"텍스트 수정 실패: {str(e)}",
+                "success": False,
+                "langchain_used": True
+            }
+
+    def _handle_style_edit(
+        self, 
+        user_message: str, 
+        scenario_data: Dict[str, Any], 
+        max_tokens: int, 
+        temperature: float
+    ) -> Dict[str, Any]:
+        """스타일 수정 처리"""
+        try:
+            import json
+            scenario_json = json.dumps(scenario_data, indent=2, ensure_ascii=False)
+            
+            style_prompt = f"""ECG 시나리오에서 자막 스타일을 수정해주세요.
+
+사용자 요청: "{user_message}"
+
+현재 시나리오:
+```json
+{scenario_json}
+```
+
+스타일 속성:
+- color: 색상 (예: "#ff0000", "#00ff00")
+- fontSize: 크기 (예: 24, 32)
+- fontWeight: 굵기 (예: "bold", "normal")
+- textAlign: 정렬 (예: "center", "left")
+
+응답 형식 (JSON만):
+{{
+    "type": "style_edit",
+    "patches": [
+        {{"op": "replace", "path": "/cues/0/root/children/0/style/color", "value": "#ff0000"}}
+    ],
+    "explanation": "스타일 수정 설명",
+    "success": true
+}}"""
+
+            result = self.invoke_claude_with_chain(
+                prompt=style_prompt,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                save_response=False
+            )
+            
+            try:
+                import json
+                edit_result = json.loads(result["completion"])
+                edit_result["langchain_used"] = True
+                return edit_result
+            except json.JSONDecodeError:
+                return {
+                    "type": "style_edit",
+                    "patches": [],
+                    "explanation": result["completion"],
+                    "success": False,
+                    "error": "JSON 파싱 실패",
+                    "langchain_used": True
+                }
+                
+        except Exception as e:
+            logger.error(f"Style edit handling failed: {e}")
+            return {
+                "type": "style_edit",
+                "error": f"스타일 수정 실패: {str(e)}",
+                "success": False,
+                "langchain_used": True
+            }
+
+    def _handle_animation_request(
+        self, 
+        user_message: str, 
+        scenario_data: Dict[str, Any], 
+        max_tokens: int, 
+        temperature: float
+    ) -> Dict[str, Any]:
+        """애니메이션 요청 처리"""
+        try:
+            import json
+            scenario_json = json.dumps(scenario_data, indent=2, ensure_ascii=False)
+            
+            animation_prompt = f"""ECG 시나리오에 애니메이션 효과를 추가해주세요.
+
+사용자 요청: "{user_message}"
+
+현재 시나리오:
+```json
+{scenario_json}
+```
+
+사용 가능한 애니메이션:
+- **rotation**: 회전 효과 {{"rotationDegrees": 360, "animationDuration": 1.0}}
+- **fadein**: 페이드인 {{"animationDuration": 1.0, "startOpacity": 0}}
+- **typewriter**: 타이핑 {{"typingSpeed": 50, "showCursor": true}}
+- **glow**: 글로우 {{"color": "#ffff00", "intensity": 2, "pulse": true}}
+- **scalepop**: 팝 효과 {{"popScale": 1.5, "animationDuration": 1.2}}
+
+응답 형식 (JSON만):
+{{
+    "type": "animation_request",
+    "patches": [
+        {{"op": "add", "path": "/cues/0/root/children/0/pluginChain", "value": [{{"name": "fadein", "params": {{"animationDuration": 1.0}}}}]}}
+    ],
+    "explanation": "애니메이션 추가 설명",
+    "success": true
+}}"""
+
+            result = self.invoke_claude_with_chain(
+                prompt=animation_prompt,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                save_response=False
+            )
+            
+            try:
+                import json
+                edit_result = json.loads(result["completion"])
+                edit_result["langchain_used"] = True
+                return edit_result
+            except json.JSONDecodeError:
+                return {
+                    "type": "animation_request",
+                    "patches": [],
+                    "explanation": result["completion"],
+                    "success": False,
+                    "error": "JSON 파싱 실패",
+                    "langchain_used": True
+                }
+                
+        except Exception as e:
+            logger.error(f"Animation request handling failed: {e}")
+            return {
+                "type": "animation_request",
+                "error": f"애니메이션 처리 실패: {str(e)}",
+                "success": False,
+                "langchain_used": True
+            }
+
+    def _handle_info_request(
+        self, 
+        user_message: str, 
+        max_tokens: int, 
+        temperature: float
+    ) -> Dict[str, Any]:
+        """정보 요청 처리"""
+        try:
+            info_prompt = f"""ECG 자막 편집 도구에 대한 질문에 답변해주세요.
+
+질문: "{user_message}"
+
+ECG 주요 기능:
+- 자동 자막 생성 및 편집
+- 다양한 애니메이션 효과
+- 실시간 미리보기
+- GPU 가속 렌더링
+
+친근하고 도움이 되는 톤으로 답변해주세요."""
+
+            result = self.invoke_claude_with_chain(
+                prompt=info_prompt,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                save_response=False
+            )
+            
+            return {
+                "type": "info_request",
+                "patches": [],
+                "explanation": result["completion"],
+                "success": True,
+                "langchain_used": True
+            }
+            
+        except Exception as e:
+            logger.error(f"Info request handling failed: {e}")
+            return {
+                "type": "info_request",
+                "error": f"정보 요청 처리 실패: {str(e)}",
+                "success": False,
+                "langchain_used": True
+            }
 
 
 # 전역 인스턴스 (싱글톤 패턴)
