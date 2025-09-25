@@ -5,7 +5,11 @@ from datetime import datetime
 
 from langchain_aws import ChatBedrock
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
-from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
+from langchain_core.prompts import (
+    ChatPromptTemplate,
+    SystemMessagePromptTemplate,
+    HumanMessagePromptTemplate,
+)
 from langchain_core.memory import ConversationBufferMemory
 from langchain_core.output_parsers import StrOutputParser
 
@@ -18,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 class LangChainBedrockService:
     """LangChain을 사용한 AWS Bedrock 서비스 클래스"""
-    
+
     def __init__(self):
         """LangChain ChatBedrock 클라이언트 초기화"""
         try:
@@ -29,12 +33,12 @@ class LangChainBedrockService:
                 model_kwargs={
                     "temperature": 0.7,
                     "max_tokens": 1000,
-                }
+                },
             )
-            
+
             # 출력 파서 초기화
             self.output_parser = StrOutputParser()
-            
+
             # 시스템 프롬프트 템플릿 정의
             self.system_template = """당신은 ECG(Easy Caption Generator) 자막 편집 도구의 AI 어시스턴트 "둘리"입니다.
 
@@ -57,35 +61,41 @@ ECG 주요 기능:
 - 화자 분리 및 관리
 - GPU 가속 렌더링
 - 드래그 앤 드롭 편집"""
-            
+
             # 프롬프트 템플릿 구성
-            self.prompt_template = ChatPromptTemplate.from_messages([
-                SystemMessagePromptTemplate.from_template(self.system_template),
-                HumanMessagePromptTemplate.from_template("{input}")
-            ])
-            
+            self.prompt_template = ChatPromptTemplate.from_messages(
+                [
+                    SystemMessagePromptTemplate.from_template(self.system_template),
+                    HumanMessagePromptTemplate.from_template("{input}"),
+                ]
+            )
+
             # 체인 구성 (프롬프트 → LLM → 파서)
             self.chain = self.prompt_template | self.llm | self.output_parser
-            
-            logger.info(f"LangChain ChatBedrock initialized for region: {settings.aws_bedrock_region}")
-            
+
+            logger.info(
+                f"LangChain ChatBedrock initialized for region: {settings.aws_bedrock_region}"
+            )
+
         except Exception as e:
             logger.error(f"Failed to initialize LangChain ChatBedrock: {e}")
             raise
 
-    def _convert_chat_history_to_messages(self, chat_history: List[ChatMessage]) -> List:
+    def _convert_chat_history_to_messages(
+        self, chat_history: List[ChatMessage]
+    ) -> List:
         """ChatMessage 리스트를 LangChain 메시지로 변환"""
         messages = []
-        
+
         # 최근 6개 메시지만 포함 (토큰 절약)
         recent_messages = chat_history[-6:] if len(chat_history) > 6 else chat_history
-        
+
         for msg in recent_messages:
             if msg.sender == "user":
                 messages.append(HumanMessage(content=msg.content))
             elif msg.sender == "bot":
                 messages.append(AIMessage(content=msg.content))
-                
+
         return messages
 
     def invoke_claude_with_chain(
@@ -98,34 +108,37 @@ ECG 주요 기능:
     ) -> Dict[str, Any]:
         """
         LangChain 체인을 사용하여 Claude 모델 호출
-        
+
         Args:
             prompt: 사용자 입력 프롬프트
             conversation_history: 대화 히스토리
             max_tokens: 최대 토큰 수
             temperature: 창의성 조절 (0.0-1.0)
             save_response: 응답을 파일로 저장할지 여부
-            
+
         Returns:
             Dict containing completion and metadata
         """
         try:
             # 모델 파라미터 업데이트
-            self.llm.model_kwargs.update({
-                "temperature": temperature,
-                "max_tokens": max_tokens,
-            })
-            
-            logger.info(f"Invoking Claude via LangChain: max_tokens={max_tokens}, temp={temperature}")
-            
+            self.llm.model_kwargs.update(
+                {
+                    "temperature": temperature,
+                    "max_tokens": max_tokens,
+                }
+            )
+
+            logger.info(
+                f"Invoking Claude via LangChain: max_tokens={max_tokens}, temp={temperature}"
+            )
+
             # 대화 히스토리가 있는 경우 메모리 사용
             if conversation_history and len(conversation_history) > 0:
                 # 메모리 초기화
                 memory = ConversationBufferMemory(
-                    memory_key="chat_history",
-                    return_messages=True
+                    memory_key="chat_history", return_messages=True
                 )
-                
+
                 # 대화 히스토리를 메모리에 추가
                 messages = self._convert_chat_history_to_messages(conversation_history)
                 for message in messages:
@@ -133,24 +146,26 @@ ECG 주요 기능:
                         memory.chat_memory.add_user_message(message.content)
                     elif isinstance(message, AIMessage):
                         memory.chat_memory.add_ai_message(message.content)
-                
+
                 # 대화 히스토리를 포함한 프롬프트 템플릿
-                history_prompt = ChatPromptTemplate.from_messages([
-                    SystemMessagePromptTemplate.from_template(self.system_template),
-                    *messages,
-                    HumanMessagePromptTemplate.from_template("{input}")
-                ])
-                
+                history_prompt = ChatPromptTemplate.from_messages(
+                    [
+                        SystemMessagePromptTemplate.from_template(self.system_template),
+                        *messages,
+                        HumanMessagePromptTemplate.from_template("{input}"),
+                    ]
+                )
+
                 # 히스토리 포함 체인
                 history_chain = history_prompt | self.llm | self.output_parser
                 completion = history_chain.invoke({"input": prompt})
             else:
                 # 단순 체인 사용
                 completion = self.chain.invoke({"input": prompt})
-            
+
             logger.info("LangChain Claude invocation successful")
             logger.debug(f"Response preview: {completion[:200]}...")
-            
+
             # 응답 결과 구성
             result = {
                 "completion": completion,
@@ -165,10 +180,12 @@ ECG 주요 기능:
                     "max_tokens": max_tokens,
                     "temperature": temperature,
                     "prompt_length": len(prompt),
-                    "history_length": len(conversation_history) if conversation_history else 0,
+                    "history_length": len(conversation_history)
+                    if conversation_history
+                    else 0,
                 },
             }
-            
+
             # 응답 저장 (옵션)
             if save_response:
                 try:
@@ -176,7 +193,7 @@ ECG 주요 기능:
                     json_file_path = response_file_manager.save_response(
                         data=result, prefix="langchain_bedrock_response"
                     )
-                    
+
                     # 텍스트만 별도 저장
                     text_file_path = response_file_manager.save_text_response(
                         text=completion,
@@ -188,23 +205,25 @@ ECG 주요 기능:
                             "max_tokens": max_tokens,
                         },
                     )
-                    
+
                     result["saved_files"] = {
                         "json_file": json_file_path,
                         "text_file": text_file_path,
                     }
-                    
-                    logger.info(f"LangChain response saved to files: {json_file_path}, {text_file_path}")
-                    
+
+                    logger.info(
+                        f"LangChain response saved to files: {json_file_path}, {text_file_path}"
+                    )
+
                 except Exception as save_error:
                     logger.warning(f"Failed to save LangChain response: {save_error}")
                     result["save_error"] = str(save_error)
-            
+
             return result
-            
+
         except Exception as e:
             logger.error(f"LangChain Claude invocation failed: {e}")
-            
+
             # 에러 타입별 처리
             if "credentials" in str(e).lower() or "access" in str(e).lower():
                 raise Exception("AWS 자격증명이 유효하지 않습니다. 설정을 확인해주세요.")
@@ -218,7 +237,7 @@ ECG 주요 기능:
     def test_connection(self) -> bool:
         """
         LangChain을 통한 Bedrock 연결 테스트
-        
+
         Returns:
             bool: 연결 성공 여부
         """
@@ -237,10 +256,10 @@ ECG 주요 기능:
     def get_saved_responses(self, pattern: str = "langchain_bedrock_*") -> List[str]:
         """
         저장된 LangChain 응답 파일 목록 조회
-        
+
         Args:
             pattern: 파일 패턴
-            
+
         Returns:
             List[str]: 파일 목록
         """
@@ -249,174 +268,180 @@ ECG 주요 기능:
     def get_response_file_info(self, filename: str) -> Dict[str, Any]:
         """
         LangChain 응답 파일 정보 조회
-        
+
         Args:
             filename: 파일명
-            
+
         Returns:
             Dict: 파일 정보
         """
         return response_file_manager.get_file_info(filename)
 
     def create_multi_step_chain(
-        self, 
-        steps: List[Dict[str, str]], 
+        self,
+        steps: List[Dict[str, str]],
         max_tokens: int = 1000,
-        temperature: float = 0.7
+        temperature: float = 0.7,
     ) -> Dict[str, Any]:
         """
         여러 단계로 구성된 체인 실행
-        
+
         Args:
             steps: 단계별 프롬프트 리스트 [{"step": "1", "prompt": "..."}, ...]
             max_tokens: 최대 토큰 수
             temperature: 창의성 조절
-            
+
         Returns:
             Dict: 각 단계별 결과와 최종 결과
         """
         try:
             results = {}
             accumulated_context = ""
-            
+
             logger.info(f"Starting multi-step chain with {len(steps)} steps")
-            
+
             for i, step_info in enumerate(steps, 1):
                 step_name = step_info.get("step", f"step_{i}")
                 step_prompt = step_info.get("prompt", "")
-                
+
                 # 이전 단계 결과를 컨텍스트로 포함
                 if accumulated_context:
-                    full_prompt = f"이전 단계 결과:\n{accumulated_context}\n\n현재 단계: {step_prompt}"
+                    full_prompt = (
+                        f"이전 단계 결과:\n{accumulated_context}\n\n현재 단계: {step_prompt}"
+                    )
                 else:
                     full_prompt = step_prompt
-                
+
                 logger.info(f"Executing step {i}/{len(steps)}: {step_name}")
-                
+
                 # 각 단계별 체인 실행
                 step_result = self.invoke_claude_with_chain(
                     prompt=full_prompt,
                     max_tokens=max_tokens,
                     temperature=temperature,
-                    save_response=False
+                    save_response=False,
                 )
-                
+
                 results[step_name] = {
                     "prompt": step_prompt,
                     "response": step_result["completion"],
                     "step_number": i,
-                    "usage": step_result.get("usage", {})
+                    "usage": step_result.get("usage", {}),
                 }
-                
+
                 # 다음 단계를 위해 결과 누적
                 accumulated_context += f"\n[{step_name}] {step_result['completion']}"
-                
+
             # 최종 결과 구성
             final_result = {
                 "multi_step_results": results,
                 "final_context": accumulated_context,
                 "total_steps": len(steps),
                 "langchain_used": True,
-                "chain_type": "multi_step"
+                "chain_type": "multi_step",
             }
-            
-            logger.info(f"Multi-step chain completed successfully with {len(steps)} steps")
+
+            logger.info(
+                f"Multi-step chain completed successfully with {len(steps)} steps"
+            )
             return final_result
-            
+
         except Exception as e:
             logger.error(f"Multi-step chain failed: {e}")
             raise Exception(f"다단계 체인 실행 실패: {str(e)}")
 
     def create_parallel_chain(
-        self, 
-        parallel_prompts: List[Dict[str, str]], 
+        self,
+        parallel_prompts: List[Dict[str, str]],
         max_tokens: int = 1000,
-        temperature: float = 0.7
+        temperature: float = 0.7,
     ) -> Dict[str, Any]:
         """
         여러 프롬프트를 병렬로 실행하는 체인
-        
+
         Args:
             parallel_prompts: 병렬 실행할 프롬프트들 [{"name": "task1", "prompt": "..."}, ...]
             max_tokens: 최대 토큰 수
             temperature: 창의성 조절
-            
+
         Returns:
             Dict: 각 병렬 작업별 결과
         """
         try:
             results = {}
-            
+
             logger.info(f"Starting parallel chain with {len(parallel_prompts)} tasks")
-            
+
             for task_info in parallel_prompts:
                 task_name = task_info.get("name", f"task_{len(results) + 1}")
                 task_prompt = task_info.get("prompt", "")
-                
+
                 logger.info(f"Executing parallel task: {task_name}")
-                
+
                 # 각 작업별 독립적인 체인 실행
                 task_result = self.invoke_claude_with_chain(
                     prompt=task_prompt,
                     max_tokens=max_tokens,
                     temperature=temperature,
-                    save_response=False
+                    save_response=False,
                 )
-                
+
                 results[task_name] = {
                     "prompt": task_prompt,
                     "response": task_result["completion"],
                     "usage": task_result.get("usage", {}),
-                    "model_id": task_result.get("model_id")
+                    "model_id": task_result.get("model_id"),
                 }
-            
+
             # 최종 결과 구성
             final_result = {
                 "parallel_results": results,
                 "total_tasks": len(parallel_prompts),
                 "langchain_used": True,
-                "chain_type": "parallel"
+                "chain_type": "parallel",
             }
-            
-            logger.info(f"Parallel chain completed successfully with {len(parallel_prompts)} tasks")
+
+            logger.info(
+                f"Parallel chain completed successfully with {len(parallel_prompts)} tasks"
+            )
             return final_result
-            
+
         except Exception as e:
             logger.error(f"Parallel chain failed: {e}")
             raise Exception(f"병렬 체인 실행 실패: {str(e)}")
 
     def create_conditional_chain(
-        self, 
+        self,
         initial_prompt: str,
-        conditions: List[Dict[str, Any]], 
+        conditions: List[Dict[str, Any]],
         max_tokens: int = 1000,
-        temperature: float = 0.7
+        temperature: float = 0.7,
     ) -> Dict[str, Any]:
         """
         조건부 체인 실행 (첫 번째 응답에 따라 다음 단계 결정)
-        
+
         Args:
             initial_prompt: 초기 프롬프트
             conditions: 조건별 다음 단계들 [{"condition_keyword": "키워드", "next_prompt": "..."}, ...]
             max_tokens: 최대 토큰 수
             temperature: 창의성 조절
-            
+
         Returns:
             Dict: 조건부 실행 결과
         """
         try:
             logger.info("Starting conditional chain")
-            
+
             # 1단계: 초기 프롬프트 실행
             initial_result = self.invoke_claude_with_chain(
                 prompt=initial_prompt,
                 max_tokens=max_tokens,
                 temperature=temperature,
-                save_response=False
+                save_response=False,
             )
-            
+
             initial_response = initial_result["completion"].lower()
-            
+
             # 2단계: 조건 확인 및 다음 단계 결정
             matched_condition = None
             for condition in conditions:
@@ -424,36 +449,40 @@ ECG 주요 기능:
                 if condition_keyword and condition_keyword in initial_response:
                     matched_condition = condition
                     break
-            
+
             if matched_condition:
-                logger.info(f"Condition matched: {matched_condition.get('condition_keyword')}")
-                
+                logger.info(
+                    f"Condition matched: {matched_condition.get('condition_keyword')}"
+                )
+
                 # 조건에 맞는 다음 단계 실행
                 next_prompt = matched_condition.get("next_prompt", "")
-                context_prompt = f"이전 응답: {initial_result['completion']}\n\n{next_prompt}"
-                
+                context_prompt = (
+                    f"이전 응답: {initial_result['completion']}\n\n{next_prompt}"
+                )
+
                 next_result = self.invoke_claude_with_chain(
                     prompt=context_prompt,
                     max_tokens=max_tokens,
                     temperature=temperature,
-                    save_response=False
+                    save_response=False,
                 )
-                
+
                 final_result = {
                     "initial_step": {
                         "prompt": initial_prompt,
                         "response": initial_result["completion"],
-                        "usage": initial_result.get("usage", {})
+                        "usage": initial_result.get("usage", {}),
                     },
                     "conditional_step": {
                         "matched_condition": matched_condition.get("condition_keyword"),
                         "prompt": next_prompt,
                         "response": next_result["completion"],
-                        "usage": next_result.get("usage", {})
+                        "usage": next_result.get("usage", {}),
                     },
                     "final_response": next_result["completion"],
                     "langchain_used": True,
-                    "chain_type": "conditional"
+                    "chain_type": "conditional",
                 }
             else:
                 logger.info("No condition matched, using initial response")
@@ -461,17 +490,17 @@ ECG 주요 기능:
                     "initial_step": {
                         "prompt": initial_prompt,
                         "response": initial_result["completion"],
-                        "usage": initial_result.get("usage", {})
+                        "usage": initial_result.get("usage", {}),
                     },
                     "conditional_step": None,
                     "final_response": initial_result["completion"],
                     "langchain_used": True,
-                    "chain_type": "conditional"
+                    "chain_type": "conditional",
                 }
-            
+
             logger.info("Conditional chain completed successfully")
             return final_result
-            
+
         except Exception as e:
             logger.error(f"Conditional chain failed: {e}")
             raise Exception(f"조건부 체인 실행 실패: {str(e)}")
@@ -481,24 +510,24 @@ ECG 주요 기능:
         user_message: str,
         subtitle_json: Optional[Dict[str, Any]] = None,
         max_tokens: int = 1500,
-        temperature: float = 0.3
+        temperature: float = 0.3,
     ) -> Dict[str, Any]:
         """
         ECG 자막 애니메이션 처리를 위한 특화된 순차 체인
         Prompt.md의 워크플로우를 따름
-        
+
         Args:
             user_message: 사용자 메시지
             subtitle_json: 기존 자막 JSON 데이터 (선택사항)
             max_tokens: 최대 토큰 수
             temperature: 창의성 조절 (낮은 값으로 정확성 우선)
-            
+
         Returns:
             Dict: 단계별 처리 결과와 최종 JSON patch
         """
         try:
             logger.info("Starting ECG subtitle animation chain")
-            
+
             # 단계 1: 메시지 유형 분류
             classification_prompt = f"""다음 사용자 메시지를 분석하여 유형을 분류해주세요:
 
@@ -520,16 +549,19 @@ ECG 주요 기능:
                 prompt=classification_prompt,
                 max_tokens=200,
                 temperature=0.1,
-                save_response=False
+                save_response=False,
             )
-            
+
             logger.info(f"Step 1 completed: Message classification")
-            
+
             # 분류 결과 파싱 시도
             try:
                 import json
+
                 classification_data = json.loads(step1_result["completion"])
-                classification = classification_data.get("classification", "animation_request")
+                classification = classification_data.get(
+                    "classification", "animation_request"
+                )
             except:
                 # JSON 파싱 실패시 키워드 기반 분류
                 response_lower = step1_result["completion"].lower()
@@ -539,7 +571,7 @@ ECG 주요 기능:
                     classification = "simple_edit"
                 else:
                     classification = "animation_request"
-            
+
             # 단계 2: 분류에 따른 처리
             if classification == "simple_info":
                 # 단순 정보 요청 - 바로 응답
@@ -561,19 +593,19 @@ ECG 주요 기능:
                     prompt=info_prompt,
                     max_tokens=max_tokens,
                     temperature=temperature,
-                    save_response=False
+                    save_response=False,
                 )
-                
+
                 return {
                     "chain_type": "subtitle_animation",
                     "classification": "simple_info",
                     "steps": {
                         "classification": step1_result,
-                        "final_response": final_result
+                        "final_response": final_result,
                     },
                     "final_response": final_result["completion"],
                     "json_patch": None,
-                    "langchain_used": True
+                    "langchain_used": True,
                 }
 
             elif classification == "simple_edit":
@@ -583,9 +615,9 @@ ECG 주요 기능:
                         "chain_type": "subtitle_animation",
                         "classification": "simple_edit",
                         "error": "자막 JSON 데이터가 필요합니다.",
-                        "langchain_used": True
+                        "langchain_used": True,
                     }
-                
+
                 edit_prompt = f"""기존 자막 JSON을 바탕으로 사용자 요청사항을 JSON patch 형태로 수정해주세요:
 
 사용자 요청: {user_message}
@@ -606,19 +638,19 @@ JSON patch 형태로 수정사항을 제공해주세요. 기존 구조를 유지
                     prompt=edit_prompt,
                     max_tokens=max_tokens,
                     temperature=0.1,
-                    save_response=False
+                    save_response=False,
                 )
-                
+
                 return {
                     "chain_type": "subtitle_animation",
                     "classification": "simple_edit",
                     "steps": {
                         "classification": step1_result,
-                        "edit_result": edit_result
+                        "edit_result": edit_result,
                     },
                     "final_response": edit_result["completion"],
                     "json_patch": edit_result["completion"],
-                    "langchain_used": True
+                    "langchain_used": True,
                 }
 
             else:  # animation_request
@@ -677,9 +709,9 @@ JSON patch 형태로 수정사항을 제공해주세요. 기존 구조를 유지
                     prompt=category_prompt,
                     max_tokens=300,
                     temperature=0.2,
-                    save_response=False
+                    save_response=False,
                 )
-                
+
                 # 단계 4: 애니메이션 JSON 생성 (manifest 스키마 기반)
                 animation_prompt = f"""추출된 카테고리를 바탕으로 실제 manifest 스키마에 맞는 애니메이션 JSON을 생성해주세요:
 
@@ -730,22 +762,22 @@ JSON patch 형태로 수정사항을 제공해주세요. 기존 구조를 유지
                     prompt=animation_prompt,
                     max_tokens=max_tokens,
                     temperature=0.3,
-                    save_response=False
+                    save_response=False,
                 )
-                
+
                 return {
                     "chain_type": "subtitle_animation",
                     "classification": "animation_request",
                     "steps": {
                         "classification": step1_result,
                         "category_extraction": step3_result,
-                        "animation_generation": final_result
+                        "animation_generation": final_result,
                     },
                     "final_response": final_result["completion"],
                     "json_patch": final_result["completion"],
-                    "langchain_used": True
+                    "langchain_used": True,
                 }
-                
+
         except Exception as e:
             logger.error(f"Subtitle animation chain failed: {e}")
             raise Exception(f"자막 애니메이션 체인 실행 실패: {str(e)}")
