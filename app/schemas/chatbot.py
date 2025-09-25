@@ -26,6 +26,9 @@ class ChatBotRequest(BaseModel):
     conversation_history: Optional[List[ChatMessage]] = Field(
         default=[], description="대화 히스토리 (최근 6개 메시지)"
     )
+    scenario_data: Optional[Dict[str, Any]] = Field(
+        default=None, description="현재 시나리오 파일 (자막 및 스타일링 데이터)"
+    )
     max_tokens: Optional[int] = Field(
         default=1000, description="최대 토큰 수", ge=1, le=4000
     )
@@ -38,7 +41,7 @@ class ChatBotRequest(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "prompt": "ECG에서 자막 색상을 변경하는 방법을 알려주세요",
+                "prompt": "첫 번째 자막의 색상을 빨간색으로 변경해주세요",
                 "conversation_history": [
                     {
                         "id": "1",
@@ -53,10 +56,27 @@ class ChatBotRequest(BaseModel):
                         "timestamp": "2024-01-01T00:00:01Z",
                     },
                 ],
+                "scenario_data": {
+                    "cues": [
+                        {
+                            "root": {
+                                "id": "clip-clip-1",
+                                "children": [
+                                    {
+                                        "id": "word-1",
+                                        "text": "안녕하세요",
+                                        "baseTime": [0.0, 1.5],
+                                        "style": {"color": "#ffffff"},
+                                    }
+                                ],
+                            }
+                        }
+                    ]
+                },
                 "max_tokens": 1000,
                 "temperature": 0.7,
                 "save_response": True,
-                "use_langchain": False,
+                "use_langchain": True,
             }
         }
 
@@ -70,6 +90,13 @@ class ChatBotResponse(BaseModel):
     processing_time_ms: Optional[int] = Field(default=None, description="처리 시간 (밀리초)")
     saved_files: Optional[SavedFiles] = Field(default=None, description="저장된 파일 정보")
     save_error: Optional[str] = Field(default=None, description="파일 저장 중 발생한 오류")
+
+    # 시나리오 편집 관련 필드
+    edit_result: Optional[Dict[str, Any]] = Field(default=None, description="편집 결과 정보")
+    json_patches: Optional[List[Dict[str, Any]]] = Field(
+        default=None, description="JSON patch 배열"
+    )
+    has_scenario_edits: Optional[bool] = Field(default=False, description="시나리오 편집 여부")
 
     class Config:
         json_schema_extra = {

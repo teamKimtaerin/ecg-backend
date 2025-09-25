@@ -96,15 +96,16 @@ async def send_chatbot_message(request: ChatBotRequest) -> ChatBotResponse:
 
     try:
         logger.info(
-            f"ChatBot request received: prompt length={len(request.prompt)}, use_langchain={request.use_langchain}"
+            f"ChatBot request received: prompt length={len(request.prompt)}, use_langchain={request.use_langchain}, has_scenario={request.scenario_data is not None}"
         )
 
         # LangChain 사용 여부에 따라 다른 서비스 호출
         if request.use_langchain:
-            # LangChain을 통한 호출
+            # LangChain을 통한 호출 (시나리오 데이터 포함)
             result = langchain_bedrock_service.invoke_claude_with_chain(
                 prompt=request.prompt,
                 conversation_history=request.conversation_history,
+                scenario_data=request.scenario_data,
                 max_tokens=request.max_tokens,
                 temperature=request.temperature,
                 save_response=request.save_response,
@@ -144,6 +145,14 @@ async def send_chatbot_message(request: ChatBotRequest) -> ChatBotResponse:
 
         if "save_error" in result:
             response_data["save_error"] = result["save_error"]
+
+        # 시나리오 편집 정보 추가
+        if "edit_result" in result:
+            response_data["edit_result"] = result["edit_result"]
+
+        if "json_patches" in result:
+            response_data["json_patches"] = result["json_patches"]
+            response_data["has_scenario_edits"] = bool(result["json_patches"])
 
         return ChatBotResponse(**response_data)
 
@@ -316,10 +325,11 @@ async def send_langchain_chatbot_message(request: ChatBotRequest) -> ChatBotResp
             f"LangChain ChatBot request received: prompt length={len(request.prompt)}"
         )
 
-        # LangChain을 통한 호출 (강제)
+        # LangChain을 통한 호출 (강제, 시나리오 데이터 포함)
         result = langchain_bedrock_service.invoke_claude_with_chain(
             prompt=request.prompt,
             conversation_history=request.conversation_history,
+            scenario_data=request.scenario_data,
             max_tokens=request.max_tokens,
             temperature=request.temperature,
             save_response=request.save_response,
@@ -346,6 +356,14 @@ async def send_langchain_chatbot_message(request: ChatBotRequest) -> ChatBotResp
 
         if "save_error" in result:
             response_data["save_error"] = result["save_error"]
+
+        # 시나리오 편집 정보 추가
+        if "edit_result" in result:
+            response_data["edit_result"] = result["edit_result"]
+
+        if "json_patches" in result:
+            response_data["json_patches"] = result["json_patches"]
+            response_data["has_scenario_edits"] = bool(result["json_patches"])
 
         return ChatBotResponse(**response_data)
 
