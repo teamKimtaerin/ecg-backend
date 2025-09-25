@@ -313,7 +313,6 @@ class LangChainBedrockService:
                 },
             }
 
-
             return result
 
         except Exception as e:
@@ -346,7 +345,6 @@ class LangChainBedrockService:
         except Exception as e:
             logger.error(f"LangChain connection test failed: {e}")
             return False
-
 
     def create_multi_step_chain(
         self,
@@ -390,7 +388,7 @@ class LangChainBedrockService:
                     prompt=full_prompt,
                     max_tokens=max_tokens,
                     temperature=temperature,
-                    )
+                )
 
                 results[step_name] = {
                     "prompt": step_prompt,
@@ -453,7 +451,7 @@ class LangChainBedrockService:
                     prompt=task_prompt,
                     max_tokens=max_tokens,
                     temperature=temperature,
-                    )
+                )
 
                 results[task_name] = {
                     "prompt": task_prompt,
@@ -533,7 +531,7 @@ class LangChainBedrockService:
                     prompt=context_prompt,
                     max_tokens=max_tokens,
                     temperature=temperature,
-                    )
+                )
 
                 final_result = {
                     "initial_step": {
@@ -693,7 +691,7 @@ ECG 주요 기능:
                     prompt=info_prompt,
                     max_tokens=max_tokens,
                     temperature=temperature,
-                    )
+                )
 
                 return {
                     "chain_type": "subtitle_animation",
@@ -740,7 +738,7 @@ JSON patch 형태로 수정사항을 제공해주세요. 기존 구조를 유지
                     prompt=edit_prompt,
                     max_tokens=max_tokens,
                     temperature=0.1,
-                    )
+                )
 
                 return {
                     "chain_type": "subtitle_animation",
@@ -813,7 +811,7 @@ JSON patch 형태로 수정사항을 제공해주세요. 기존 구조를 유지
                     prompt=category_prompt,
                     max_tokens=300,
                     temperature=0.2,
-                    )
+                )
 
                 # 단계 4: 애니메이션 JSON 생성 (manifest 스키마 기반)
                 animation_prompt = f"""추출된 카테고리를 바탕으로 실제 manifest 스키마에 맞는 애니메이션 JSON을 생성해주세요:
@@ -865,7 +863,7 @@ JSON patch 형태로 수정사항을 제공해주세요. 기존 구조를 유지
                     prompt=animation_prompt,
                     max_tokens=max_tokens,
                     temperature=0.3,
-                    )
+                )
 
                 return {
                     "chain_type": "subtitle_animation",

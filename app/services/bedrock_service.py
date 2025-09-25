@@ -97,7 +97,6 @@ class BedrockService:
                     },
                 }
 
-
                 return result
             else:
                 raise Exception("Invalid response format from Claude model")
@@ -144,13 +143,12 @@ class BedrockService:
                 prompt="안녕하세요",
                 max_tokens=50,
                 temperature=0.1,
-  # 테스트용
+                # 테스트용
             )
             return True
         except Exception as e:
             logger.error(f"Bedrock connection test failed: {e}")
             return False
-
 
 
 # 전역 인스턴스 (싱글톤 패턴)
