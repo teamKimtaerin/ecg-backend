@@ -19,7 +19,9 @@ class ResponseFileManager:
         """
         if base_dir is None:
             # 프론트엔드 프로젝트의 out 디렉토리에 저장
-            frontend_out_dir = Path("/Users/kimdong-gyu/Documents/GitHub/ecg-front/ecg-frontend/out")
+            frontend_out_dir = Path(
+                "/Users/kimdong-gyu/Documents/GitHub/ecg-front/ecg-frontend/out"
+            )
             self.base_dir = frontend_out_dir
         else:
             self.base_dir = Path(base_dir)
