@@ -560,7 +560,7 @@ ECG 주요 기능:
                 classification = classification_data.get(
                     "classification", "animation_request"
                 )
-            except:
+            except (json.JSONDecodeError, KeyError, TypeError):
                 # JSON 파싱 실패시 키워드 기반 분류
                 response_lower = step1_result["completion"].lower()
                 if "simple_info" in response_lower or "정보" in response_lower:
