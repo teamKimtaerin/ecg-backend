@@ -164,7 +164,6 @@ class LangChainBedrockService:
                 )
                 return self._generate_demo_response(scenario_data, prompt)
 
-
             # 모델 파라미터 업데이트
             self.llm.model_kwargs.update(
                 {
@@ -1323,17 +1322,13 @@ ECG 주요 기능:
                         "success": False,
                         "explanation": "시나리오 데이터가 없어 데모를 실행할 수 없습니다.",
                         "error": "No scenario data",
-                        "error": "No scenario data",
                     },
                     "json_patches": [],
                     "has_scenario_edits": False,
-                    "has_scenario_edits": False,
                 }
-
 
             patches = []
             total_words_processed = 0
-
 
             # 모든 cue를 순회하면서 단어들에 Loud 애니메이션과 붉은 그라데이션 적용
             for cue_index, cue in enumerate(scenario_data.get("cues", [])):
@@ -1363,12 +1358,10 @@ ECG 주요 기능:
                                 },
                             }
 
-
                             # 붉은 그라데이션 색상 스타일 추가
                             red_gradient_style = {
                                 "fill": "linear-gradient(45deg, #ff4444, #cc0000, #ff6666, #990000)",
                                 "fontWeight": "bold",
-                                "textShadow": "2px 2px 4px rgba(255, 0, 0, 0.5)",
                                 "textShadow": "2px 2px 4px rgba(255, 0, 0, 0.5)",
                             }
 
@@ -1415,11 +1408,9 @@ ECG 주요 기능:
                 "completion": f"🎭 데모 모드 실행 완료! 총 {total_words_processed}개의 단어에 cwi-loud (펄스+진동) + glow (글로우) 애니메이션과 화난 느낌의 붉은 그라데이션을 적용했습니다. 강렬하고 역동적인 효과로 시청자의 시선을 사로잡을 것입니다!",
                 "stop_reason": "end_turn",
                 "usage": {"input_tokens": len(prompt.split()), "output_tokens": 50},
-                "usage": {"input_tokens": len(prompt.split()), "output_tokens": 50},
                 "model_id": self.llm.model_id,
                 "langchain_used": True,
                 "edit_result": {
-                    "type": "style_edit",
                     "type": "style_edit",
                     "success": True,
                     "explanation": f" {total_words_processed}개 단어에 Loud 애니메이션과 붉은 그라데이션 효과를 일괄 적용했습니다.",
@@ -1427,9 +1418,7 @@ ECG 주요 기능:
                 "json_patches": patches,
                 "has_scenario_edits": True,
                 "demo_mode": True,
-                "demo_mode": True,
             }
-
 
         except Exception as e:
             logger.error(f"❌ Demo response generation failed: {e}")
@@ -1447,7 +1436,6 @@ ECG 주요 기능:
                 },
                 "json_patches": [],
                 "has_scenario_edits": False,
-                "demo_mode": True,
                 "demo_mode": True,
             }
 

@@ -101,7 +101,7 @@ class ChatBotResponse(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "completion": "<summary>총 1개 연산, 자막 색상을 빨간색으로 변경</summary>\\n<json_patch_chunk index=\"1\" total=\"1\" ops=\"1\">\\n<![CDATA[\\n[\\n  {\\n    \"op\": \"replace\",\\n    \"path\": \"/cues/0/root/children/0/style/color\",\\n    \"value\": \"#ff0000\"\\n  }\\n]\\n]]>\\n</json_patch_chunk>\\n<apply_order>1</apply_order>",
+                "completion": '<summary>총 1개 연산, 자막 색상을 빨간색으로 변경</summary>\\n<json_patch_chunk index="1" total="1" ops="1">\\n<![CDATA[\\n[\\n  {\\n    "op": "replace",\\n    "path": "/cues/0/root/children/0/style/color",\\n    "value": "#ff0000"\\n  }\\n]\\n]]>\\n</json_patch_chunk>\\n<apply_order>1</apply_order>',
                 "stop_reason": "end_turn",
                 "usage": {"input_tokens": 120, "output_tokens": 280},
                 "processing_time_ms": 2100,
@@ -112,16 +112,16 @@ class ChatBotResponse(BaseModel):
                 "edit_result": {
                     "type": "motion_text_edit",
                     "success": True,
-                    "explanation": "자막 색상을 빨간색으로 성공적으로 변경했습니다."
+                    "explanation": "자막 색상을 빨간색으로 성공적으로 변경했습니다.",
                 },
                 "json_patches": [
                     {
                         "op": "replace",
                         "path": "/cues/0/root/children/0/style/color",
-                        "value": "#ff0000"
+                        "value": "#ff0000",
                     }
                 ],
-                "has_scenario_edits": True
+                "has_scenario_edits": True,
             }
         }
 
