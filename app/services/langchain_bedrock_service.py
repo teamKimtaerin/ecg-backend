@@ -157,7 +157,6 @@ class LangChainBedrockService:
                 )
                 return self._generate_demo_response(scenario_data, prompt)
 
-
             # 모델 파라미터 업데이트
             self.llm.model_kwargs.update(
                 {
@@ -1251,10 +1250,8 @@ ECG 주요 기능:
                     "has_scenario_edits": False,
                 }
 
-
             patches = []
             total_words_processed = 0
-
 
             # 모든 cue를 순회하면서 단어들에 Loud 애니메이션과 붉은 그라데이션 적용
             for cue_index, cue in enumerate(scenario_data.get("cues", [])):
@@ -1283,7 +1280,6 @@ ECG 주요 기능:
                                     "cycles": 8,
                                 },
                             }
-
 
                             # 붉은 그라데이션 색상 스타일 추가
                             red_gradient_style = {
@@ -1335,7 +1331,6 @@ ECG 주요 기능:
                 "has_scenario_edits": True,
                 "demo_mode": True,
             }
-
 
         except Exception as e:
             logger.error(f"❌ Demo response generation failed: {e}")
