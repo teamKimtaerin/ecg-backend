@@ -1,5 +1,4 @@
 import json
-import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, Optional
@@ -16,12 +15,14 @@ class ResponseFileManager:
         ResponseFileManager 초기화
 
         Args:
-            base_dir: 출력 파일을 저장할 기본 디렉토리 (None이면 시스템 임시 디렉토리 사용)
+            base_dir: 출력 파일을 저장할 기본 디렉토리 (None이면 프론트엔드 out 디렉토리 사용)
         """
         if base_dir is None:
-            # 보안을 위해 시스템 임시 디렉토리 사용
-            temp_dir = Path(tempfile.gettempdir()) / "ecg_output"
-            self.base_dir = temp_dir
+            # 프론트엔드 프로젝트의 out 디렉토리에 저장
+            frontend_out_dir = Path(
+                "/Users/kimdong-gyu/Documents/GitHub/ecg-front/ecg-frontend/out"
+            )
+            self.base_dir = frontend_out_dir
         else:
             self.base_dir = Path(base_dir)
         self.ensure_output_directory()

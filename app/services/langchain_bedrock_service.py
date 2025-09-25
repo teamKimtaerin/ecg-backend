@@ -138,7 +138,14 @@ ECG 주요 기능:
 
             # 시나리오 데이터가 있으면 직접 편집 체인 사용
             if scenario_data:
-                logger.info("Using direct subtitle edit chain for scenario data")
+                logger.info(
+                    "🎯 Scenario data detected - using DIRECT SUBTITLE EDIT CHAIN"
+                )
+                logger.info(
+                    f"📊 Scenario data size: {len(str(scenario_data))} characters"
+                )
+                logger.info(f"💬 User prompt: '{prompt}'")
+
                 try:
                     edit_result = self.create_direct_subtitle_edit_chain(
                         user_message=prompt,
@@ -146,6 +153,12 @@ ECG 주요 기능:
                         max_tokens=max_tokens,
                         temperature=temperature,
                     )
+
+                    logger.info("✅ Direct edit chain completed successfully")
+                    logger.info(
+                        f"📝 Edit result type: {edit_result.get('type', 'unknown')}"
+                    )
+                    logger.info(f"✨ Edit success: {edit_result.get('success', False)}")
 
                     # 편집 결과를 기본 응답 형식으로 변환
                     return {
@@ -168,11 +181,16 @@ ECG 주요 기능:
                     }
                 except Exception as e:
                     logger.error(
-                        f"Direct edit chain failed, falling back to standard chain: {e}"
+                        f"❌ Direct edit chain failed, falling back to standard chain: {e}"
+                    )
+                    logger.warning(
+                        "🔄 Switching to standard chain processing with scenario context"
                     )
                     # 편집 체인 실패시 기본 체인으로 fallback
 
             # 기본 체인 사용 (시나리오 데이터 없거나 편집 체인 실패시)
+            logger.info("🔧 Using STANDARD CHAIN processing")
+
             scenario_json = ""
             if scenario_data:
                 try:
@@ -622,6 +640,10 @@ ECG 주요 기능:
             logger.info("Step 1 completed: Message classification")
 
             # 분류 결과 파싱 시도
+            logger.info(
+                f"🔍 Raw AI classification response: {step1_result['completion']}"
+            )
+
             try:
                 import json
 
@@ -629,18 +651,48 @@ ECG 주요 기능:
                 classification = classification_data.get(
                     "classification", "animation_request"
                 )
-            except (json.JSONDecodeError, KeyError, TypeError):
+                confidence = classification_data.get("confidence", "unknown")
+                reasoning = classification_data.get(
+                    "reasoning", "No reasoning provided"
+                )
+
+                logger.info(
+                    f"✅ JSON parsing successful - Classification: {classification}, Confidence: {confidence}"
+                )
+                logger.info(f"📝 AI reasoning: {reasoning}")
+
+            except (json.JSONDecodeError, KeyError, TypeError) as e:
+                logger.warning(
+                    f"❌ JSON parsing failed ({type(e).__name__}: {e}), falling back to keyword-based classification"
+                )
+
                 # JSON 파싱 실패시 키워드 기반 분류
                 response_lower = step1_result["completion"].lower()
+                logger.info(
+                    f"🔤 Analyzing keywords in lowercase response: '{response_lower[:200]}...'"
+                )
+
                 if "simple_info" in response_lower or "정보" in response_lower:
                     classification = "simple_info"
+                    logger.info("🎯 Keyword match: 'simple_info' or '정보' found")
                 elif "simple_edit" in response_lower or "간단" in response_lower:
                     classification = "simple_edit"
+                    logger.info("🎯 Keyword match: 'simple_edit' or '간단' found")
                 else:
                     classification = "animation_request"
+                    logger.info("🎯 Default fallback: classified as 'animation_request'")
+
+            logger.info(
+                f"🏷️  FINAL CLASSIFICATION: '{classification}' for user message: '{user_message}')"
+            )
 
             # 단계 2: 분류에 따른 처리
+            logger.info(f"🔄 Processing classification: {classification}")
+
             if classification == "simple_info":
+                logger.info(
+                    "📚 Processing as SIMPLE_INFO request - providing general information"
+                )
                 # 단순 정보 요청 - 바로 응답
                 info_prompt = f"""ECG 자막 편집 도구에 대한 질문에 답변해주세요:
 
@@ -676,6 +728,9 @@ ECG 주요 기능:
                 }
 
             elif classification == "simple_edit":
+                logger.info(
+                    "✏️  Processing as SIMPLE_EDIT request - modifying subtitle text/style"
+                )
                 # 간단한 자막 수정
                 if not subtitle_json:
                     return {
@@ -721,6 +776,9 @@ JSON patch 형태로 수정사항을 제공해주세요. 기존 구조를 유지
                 }
 
             else:  # animation_request
+                logger.info(
+                    "🎬 Processing as ANIMATION_REQUEST - extracting animation category and generating effects"
+                )
                 # 단계 3: 애니메이션 카테고리 추출 (실제 manifest 기반)
                 category_prompt = f"""사용자가 원하는 애니메이션 효과의 카테고리를 추출해주세요:
 
@@ -878,7 +936,7 @@ JSON patch 형태로 수정사항을 제공해주세요. 기존 구조를 유지
 
 분류 기준:
 - "text_edit": 자막 텍스트 수정 (오탈자, 번역, 단어 변경)
-- "style_edit": 자막 스타일 수정 (색상, 크기, 위치)  
+- "style_edit": 자막 스타일 수정 (색상, 크기, 위치)
 - "animation_request": 애니메이션 효과 추가/수정
 - "info_request": 단순 정보 질문
 
@@ -892,31 +950,52 @@ JSON 형태로 응답:
                 save_response=False,
             )
 
+            logger.info(
+                f"🔍 [DIRECT EDIT] Raw AI classification response: {classification_result['completion']}"
+            )
+
             # 분류 결과 파싱
             try:
                 import json
 
                 classification_data = json.loads(classification_result["completion"])
                 classification = classification_data.get("classification", "text_edit")
-            except (json.JSONDecodeError, KeyError):
+                confidence = classification_data.get("confidence", "unknown")
+
+                logger.info(
+                    f"✅ [DIRECT EDIT] JSON parsing successful - Classification: {classification}, Confidence: {confidence}"
+                )
+
+            except (json.JSONDecodeError, KeyError) as e:
+                logger.warning(
+                    f"❌ [DIRECT EDIT] JSON parsing failed ({type(e).__name__}: {e}), using fallback classification"
+                )
                 classification = "text_edit"  # 기본값
 
-            logger.info(f"Request classified as: {classification}")
+            logger.info(
+                f"🏷️ [DIRECT EDIT] FINAL CLASSIFICATION: '{classification}' for user message: '{user_message}'"
+            )
 
             # 2단계: 분류에 따른 편집 실행
+            logger.info(f"🔄 [DIRECT EDIT] Dispatching to handler for: {classification}")
+
             if classification == "text_edit":
+                logger.info("📝 [DIRECT EDIT] Calling text edit handler")
                 return self._handle_text_edit(
                     user_message, scenario_data, max_tokens, temperature
                 )
             elif classification == "style_edit":
+                logger.info("🎨 [DIRECT EDIT] Calling style edit handler")
                 return self._handle_style_edit(
                     user_message, scenario_data, max_tokens, temperature
                 )
             elif classification == "animation_request":
+                logger.info("🎬 [DIRECT EDIT] Calling animation request handler")
                 return self._handle_animation_request(
                     user_message, scenario_data, max_tokens, temperature
                 )
             else:
+                logger.info("📚 [DIRECT EDIT] Calling info request handler")
                 return self._handle_info_request(user_message, max_tokens, temperature)
 
         except Exception as e:
