@@ -18,8 +18,8 @@ def test_langchain_imports():
 
     try:
         from langchain_aws import ChatBedrock
-        
-        # Test basic usage to avoid unused import warnings  
+
+        # Test basic usage to avoid unused import warnings
         ChatBedrock
         print("✅ ChatBedrock import successful")
     except ImportError as e:
@@ -30,10 +30,10 @@ def test_langchain_imports():
         from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
         from langchain_core.prompts import ChatPromptTemplate
         from langchain_core.output_parsers import StrOutputParser
-        
+
         # Test basic usage to avoid unused import warnings
         HumanMessage(content="test")
-        AIMessage(content="test") 
+        AIMessage(content="test")
         SystemMessage(content="test")
         ChatPromptTemplate.from_template("test")
         StrOutputParser()
