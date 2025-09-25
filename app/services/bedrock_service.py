@@ -3,7 +3,6 @@ import boto3
 from typing import Dict, Any
 from botocore.exceptions import ClientError, BotoCoreError
 from app.core.config import settings
-from app.utils.file_utils import response_file_manager
 import logging
 
 logger = logging.getLogger(__name__)
@@ -34,7 +33,6 @@ class BedrockService:
         max_tokens: int = 1000,
         temperature: float = 0.7,
         model_id: str = "us.anthropic.claude-3-5-haiku-20241022-v1:0",
-        save_response: bool = True,
     ) -> Dict[str, Any]:
         """
         Claude 모델을 호출하여 응답 생성 및 저장
@@ -44,7 +42,6 @@ class BedrockService:
             max_tokens: 최대 토큰 수
             temperature: 온도 (창의성 조절)
             model_id: 사용할 Claude 모델 ID
-            save_response: 응답을 파일로 저장할지 여부
 
         Returns:
             Dict containing completion, stop_reason, and file_path (if saved)
@@ -100,39 +97,6 @@ class BedrockService:
                     },
                 }
 
-                # 응답 저장 (옵션)
-                if save_response:
-                    try:
-                        # JSON 형태로 전체 응답 저장
-                        json_file_path = response_file_manager.save_response(
-                            data=result, prefix="bedrock_response"
-                        )
-
-                        # 텍스트만 별도 저장
-                        text_file_path = response_file_manager.save_text_response(
-                            text=completion,
-                            prefix="bedrock_completion",
-                            metadata={
-                                "model_id": model_id,
-                                "stop_reason": stop_reason,
-                                "usage": usage,
-                                "temperature": temperature,
-                                "max_tokens": max_tokens,
-                            },
-                        )
-
-                        result["saved_files"] = {
-                            "json_file": json_file_path,
-                            "text_file": text_file_path,
-                        }
-
-                        logger.info(
-                            f"Response saved to files: {json_file_path}, {text_file_path}"
-                        )
-
-                    except Exception as save_error:
-                        logger.warning(f"Failed to save response to file: {save_error}")
-                        result["save_error"] = str(save_error)
 
                 return result
             else:
@@ -180,36 +144,13 @@ class BedrockService:
                 prompt="안녕하세요",
                 max_tokens=50,
                 temperature=0.1,
-                save_response=False,  # 테스트 시에는 저장하지 않음
+  # 테스트용
             )
             return True
         except Exception as e:
             logger.error(f"Bedrock connection test failed: {e}")
             return False
 
-    def get_saved_responses(self, pattern: str = "bedrock_*") -> list:
-        """
-        저장된 응답 파일 목록 조회
-
-        Args:
-            pattern: 파일 패턴
-
-        Returns:
-            list: 파일 목록
-        """
-        return response_file_manager.list_saved_files(pattern)
-
-    def get_response_file_info(self, filename: str) -> Dict[str, Any]:
-        """
-        응답 파일 정보 조회
-
-        Args:
-            filename: 파일명
-
-        Returns:
-            Dict: 파일 정보
-        """
-        return response_file_manager.get_file_info(filename)
 
 
 # 전역 인스턴스 (싱글톤 패턴)
