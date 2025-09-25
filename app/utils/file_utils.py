@@ -1,4 +1,5 @@
 import json
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, Optional
@@ -10,14 +11,19 @@ logger = logging.getLogger(__name__)
 class ResponseFileManager:
     """응답 파일 관리 클래스"""
 
-    def __init__(self, base_dir: str = "/tmp/output"):
+    def __init__(self, base_dir: Optional[str] = None):
         """
         ResponseFileManager 초기화
 
         Args:
-            base_dir: 출력 파일을 저장할 기본 디렉토리
+            base_dir: 출력 파일을 저장할 기본 디렉토리 (None이면 시스템 임시 디렉토리 사용)
         """
-        self.base_dir = Path(base_dir)
+        if base_dir is None:
+            # 보안을 위해 시스템 임시 디렉토리 사용
+            temp_dir = Path(tempfile.gettempdir()) / "ecg_output"
+            self.base_dir = temp_dir
+        else:
+            self.base_dir = Path(base_dir)
         self.ensure_output_directory()
 
     def ensure_output_directory(self) -> None:
