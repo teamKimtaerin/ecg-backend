@@ -87,10 +87,11 @@ async def send_chatbot_message(request: ChatBotRequest) -> ChatBotResponse:
 
     - **prompt**: 사용자 입력 메시지 (필수)
     - **conversation_history**: 이전 대화 내역 (선택사항)
-    - **max_tokens**: 최대 응답 토큰 수 (기본값: 1000)
-    - **temperature**: 창의성 조절 (0.0-1.0, 기본값: 0.7)
+    - **scenario_data**: 시나리오 데이터 (선택사항)
     - **save_response**: 응답을 파일로 저장할지 여부 (기본값: True)
-    - **use_langchain**: LangChain 사용 여부 (기본값: False)
+    - **use_langchain**: LangChain 사용 여부 (기본값: True)
+
+    참고: max_tokens(2000)와 temperature(0.7)는 백엔드에서 고정값으로 설정됩니다.
     """
     start_time = time.time()
 
@@ -99,21 +100,29 @@ async def send_chatbot_message(request: ChatBotRequest) -> ChatBotResponse:
             f"ChatBot request received: prompt length={len(request.prompt)}, use_langchain={request.use_langchain}, has_scenario={request.scenario_data is not None}"
         )
 
+        # 백엔드에서 토큰 수와 온도 설정
+        max_tokens = 2000  # 프론트엔드 값 무시하고 고정값 사용
+        temperature = 0.7  # 프론트엔드 값 무시하고 고정값 사용
+
         # 시나리오 데이터가 있거나 LangChain이 요청된 경우 LangChain 사용
         if request.use_langchain or request.scenario_data is not None:
             # LangChain을 통한 호출 (시나리오 데이터 포함)
-            logger.info("Using LangChain service for enhanced scenario processing")
+            logger.info(
+                f"Using LangChain service with backend-set values: max_tokens={max_tokens}, temperature={temperature}"
+            )
             result = langchain_bedrock_service.invoke_claude_with_chain(
                 prompt=request.prompt,
                 conversation_history=request.conversation_history,
                 scenario_data=request.scenario_data,
-                max_tokens=request.max_tokens,
-                temperature=request.temperature,
+                max_tokens=max_tokens,
+                temperature=temperature,
                 save_response=request.save_response,
             )
         else:
             # 기존 직접 API 호출 방식 (시나리오 데이터 없는 경우만)
-            logger.info("Using basic Bedrock service")
+            logger.info(
+                f"Using basic Bedrock service with backend-set values: max_tokens={max_tokens}, temperature={temperature}"
+            )
             # 프롬프트 구성
             full_prompt = build_context_prompt(request)
             logger.debug(f"Full prompt preview: {full_prompt[:200]}...")
@@ -121,8 +130,8 @@ async def send_chatbot_message(request: ChatBotRequest) -> ChatBotResponse:
             # Bedrock 서비스 호출 (파일 저장 포함)
             result = bedrock_service.invoke_claude(
                 prompt=full_prompt,
-                max_tokens=request.max_tokens,
-                temperature=request.temperature,
+                max_tokens=max_tokens,
+                temperature=temperature,
                 save_response=request.save_response,
             )
 
@@ -319,6 +328,9 @@ async def send_langchain_chatbot_message(request: ChatBotRequest) -> ChatBotResp
     - 대화 메모리 관리
     - 프롬프트 템플릿
     - 체인 기반 처리
+    - MotionTextEditor 표준 준수
+
+    참고: max_tokens(2000)와 temperature(0.7)는 백엔드에서 고정값으로 설정됩니다.
     """
     start_time = time.time()
 
@@ -327,13 +339,20 @@ async def send_langchain_chatbot_message(request: ChatBotRequest) -> ChatBotResp
             f"LangChain ChatBot request received: prompt length={len(request.prompt)}"
         )
 
+        # 백엔드에서 토큰 수와 온도 설정
+        max_tokens = 2000  # 프론트엔드 값 무시하고 고정값 사용
+        temperature = 0.7  # 프론트엔드 값 무시하고 고정값 사용
+
         # LangChain을 통한 호출 (강제, 시나리오 데이터 포함)
+        logger.info(
+            f"LangChain endpoint with backend-set values: max_tokens={max_tokens}, temperature={temperature}"
+        )
         result = langchain_bedrock_service.invoke_claude_with_chain(
             prompt=request.prompt,
             conversation_history=request.conversation_history,
             scenario_data=request.scenario_data,
-            max_tokens=request.max_tokens,
-            temperature=request.temperature,
+            max_tokens=max_tokens,
+            temperature=temperature,
             save_response=request.save_response,
         )
 

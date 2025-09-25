@@ -30,10 +30,10 @@ class ChatBotRequest(BaseModel):
         default=None, description="현재 시나리오 파일 (자막 및 스타일링 데이터)"
     )
     max_tokens: Optional[int] = Field(
-        default=1000, description="최대 토큰 수", ge=1, le=4000
+        default=1000, description="최대 토큰 수 (백엔드에서 1000으로 고정 설정됨)", ge=1, le=4000
     )
     temperature: Optional[float] = Field(
-        default=0.7, description="온도 (창의성 조절)", ge=0.0, le=1.0
+        default=0.7, description="온도 (백엔드에서 0.7로 고정 설정됨)", ge=0.0, le=1.0
     )
     save_response: Optional[bool] = Field(default=True, description="응답을 파일로 저장할지 여부")
     use_langchain: Optional[bool] = Field(default=True, description="LangChain 사용 여부")
@@ -101,14 +101,27 @@ class ChatBotResponse(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "completion": "ECG에서 자막 색상을 변경하는 방법은 다음과 같습니다:\\n\\n1. 자막을 선택합니다\\n2. 우측 패널에서 색상 옵션을 찾습니다\\n3. 원하는 색상을 선택하세요",
+                "completion": '<summary>총 1개 연산, 자막 색상을 빨간색으로 변경</summary>\\n<json_patch_chunk index="1" total="1" ops="1">\\n<![CDATA[\\n[\\n  {\\n    "op": "replace",\\n    "path": "/cues/0/root/children/0/style/color",\\n    "value": "#ff0000"\\n  }\\n]\\n]]>\\n</json_patch_chunk>\\n<apply_order>1</apply_order>',
                 "stop_reason": "end_turn",
-                "usage": {"input_tokens": 50, "output_tokens": 150},
-                "processing_time_ms": 1500,
+                "usage": {"input_tokens": 120, "output_tokens": 280},
+                "processing_time_ms": 2100,
                 "saved_files": {
-                    "json_file": "output/bedrock_response_20241201_143022.json",
-                    "text_file": "output/bedrock_completion_20241201_143022.txt",
+                    "json_file": "/Users/kimdong-gyu/Documents/GitHub/ecg-front/ecg-frontend/out/bedrock_response_20241201_143022.json",
+                    "text_file": "/Users/kimdong-gyu/Documents/GitHub/ecg-front/ecg-frontend/out/bedrock_completion_20241201_143022.txt",
                 },
+                "edit_result": {
+                    "type": "motion_text_edit",
+                    "success": True,
+                    "explanation": "자막 색상을 빨간색으로 성공적으로 변경했습니다.",
+                },
+                "json_patches": [
+                    {
+                        "op": "replace",
+                        "path": "/cues/0/root/children/0/style/color",
+                        "value": "#ff0000",
+                    }
+                ],
+                "has_scenario_edits": True,
             }
         }
 

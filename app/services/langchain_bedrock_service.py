@@ -37,38 +37,67 @@ class LangChainBedrockService:
             # 출력 파서 초기화
             self.output_parser = StrOutputParser()
 
-            # 시스템 프롬프트 템플릿 정의
-            self.system_template = """당신은 ECG(Easy Caption Generator) 자막 편집 도구의 AI 어시스턴트 "둘리"입니다.
+            # 시스템 프롬프트 템플릿 정의 (MotionTextEditor 표준 적용)
+            self.system_template = """당신은 MotionText v2.0 JSON을 RFC6902 JSON Patch로 수정하는 전문 편집기입니다.
 
-주요 역할:
-1. 자막 편집 관련 질문에 친절하고 정확하게 답변
-2. ECG 도구의 기능 사용법 안내
-3. 자막 작업 효율성 개선 팁 제공
-4. 기술적 문제 해결 도움
+<role>
+사용자의 자연어 지시를 받아 MotionText v2.0 JSON을 RFC6902 JSON Patch로 수정합니다.
+</role>
 
-답변 스타일:
-- 친근하고 도움이 되는 톤
-- 간결하면서도 충분한 정보 제공
-- 단계별 설명이 필요한 경우 명확한 순서로 안내
-- 한국어로 자연스럽게 대화
+<rules>
+- 최소 변경: 지시된 부분만 수정
+- 청킹 필수: 출력이 1800토큰 초과시 여러 청크로 분할
+- 순서 보장: 각 청크는 이전 청크 적용 후 적용 가능해야 함
+- RFC6902 표준: 정확한 JSON Patch 형식 준수
+</rules>
 
-ECG 주요 기능:
-- 자동 자막 생성 (AI 음성 인식)
-- 실시간 자막 편집
-- 다양한 애니메이션 효과
-- 화자 분리 및 관리
-- GPU 가속 렌더링
-- 드래그 앤 드롭 편집"""
+<schema_requirements>
+- version: 2.0 유지
+- timebase: unit="seconds", fps는 숫자
+- time_fields: [start, end] 초 배열
+- eType: "group"|"text"|"image"|"video"만 허용
+- node_id: 모든 노드는 고유 id 필요
+</schema_requirements>
 
-            # 프롬프트 템플릿 구성 (시나리오 파일 포함)
+<processing_steps>
+1. 사용자 지시 파싱
+2. 영향받는 JSON 경로 식별
+3. JSON Patch 연산 생성
+4. 1800토큰 기준으로 청킹
+5. 표준 형식으로 출력
+</processing_steps>
+
+<common_patterns>
+- text_change: {"op": "replace", "path": "/cues/0/root/text", "value": "새 텍스트"}
+- time_adjustment: {"op": "replace", "path": "/cues/0/displayTime", "value": [0, 10]}
+- plugin_add: {"op": "add", "path": "/cues/0/root/pluginChain/-", "value": {"pluginId": "fadein", "timeOffset": ["0%", "100%"], "params": {"animationDuration": 1.0}}}
+- plugin_param_edit: {"op": "replace", "path": "/cues/0/root/pluginChain/1/params/typingSpeed", "value": 0.1}
+- style_edit: {"op": "replace", "path": "/cues/0/root/style/color", "value": "#ff0000"}
+- word_plugin_add: {"op": "add", "path": "/cues/0/root/children/0/pluginChain/-", "value": {"pluginId": "glow", "params": {"color": "#00ffff", "intensity": 0.8}}}
+</common_patterns>
+
+<output_format>
+<summary>선택사항: 총 N개 연산, 주요 변경사항</summary>
+<json_patch_chunk index="1" total="N" ops="K">
+<![CDATA[
+[
+  {"op": "replace", "path": "/cues/0/root/text", "value": "새 텍스트"}
+]
+]]>
+</json_patch_chunk>
+<apply_order>1,2,3</apply_order>
+</output_format>
+
+중요: 설명 없이 summary, json_patch_chunk, apply_order만 출력하세요."""
+
+            # 프롬프트 템플릿 구성 (MotionTextEditor 표준)
             self.prompt_template = ChatPromptTemplate.from_messages(
                 [
                     SystemMessagePromptTemplate.from_template(self.system_template),
                     HumanMessagePromptTemplate.from_template(
-                        "사용자 요청: {input}\n\n"
-                        "현재 시나리오 파일 (자막 및 스타일링 데이터):\n"
-                        "```json\n{scenario_data}\n```\n\n"
-                        "위 시나리오 파일을 참고하여 사용자의 요청을 처리해주세요."
+                        "<user_instruction>{input}</user_instruction>\n\n"
+                        "<current_json>\n{scenario_data}\n</current_json>\n\n"
+                        "위의 MotionText v2.0 JSON에 사용자 지시사항을 적용하여 RFC6902 JSON Patch로 출력하세요."
                     ),
                 ]
             )
@@ -129,6 +158,10 @@ ECG 주요 기능:
                 logger.info(
                     "🎭 DEMO PROMPT DETECTED - generating demo response with Loud animation and red gradient"
                 )
+            if prompt.strip().endswith("!!"):
+                logger.info(
+                    "🎭 DEMO PROMPT DETECTED - generating demo response with Loud animation and red gradient"
+                )
                 return self._generate_demo_response(scenario_data, prompt)
 
             # 모델 파라미터 업데이트
@@ -152,6 +185,15 @@ ECG 주요 기능:
                     f"📊 Scenario data size: {len(str(scenario_data))} characters"
                 )
                 logger.info(f"💬 User prompt: '{prompt}'")
+
+                # MotionText v2.0 스키마 검증
+                validation_result = self._validate_motion_text_schema(scenario_data)
+                if not validation_result["valid"]:
+                    logger.warning(
+                        f"⚠️ Schema validation issues: {validation_result['errors']}"
+                    )
+                if validation_result["warnings"]:
+                    logger.info(f"📝 Schema warnings: {validation_result['warnings']}")
 
                 try:
                     edit_result = self.create_direct_subtitle_edit_chain(
@@ -1027,29 +1069,13 @@ JSON 형태로 응답:
 
             scenario_json = json.dumps(scenario_data, indent=2, ensure_ascii=False)
 
-            edit_prompt = f"""ECG 시나리오에서 자막 텍스트를 수정해주세요.
+            edit_prompt = f"""<user_instruction>{user_message}</user_instruction>
 
-사용자 요청: "{user_message}"
-
-현재 시나리오:
-```json
+<current_json>
 {scenario_json}
-```
+</current_json>
 
-작업:
-1. 수정할 자막을 찾기 (첫 번째, 두 번째, 특정 단어 등)
-2. 요청에 맞게 텍스트 수정
-3. JSON patch 생성
-
-응답 형식 (JSON만):
-{{
-    "type": "text_edit",
-    "patches": [
-        {{"op": "replace", "path": "/cues/0/root/children/0/text", "value": "수정된 텍스트"}}
-    ],
-    "explanation": "수정 설명",
-    "success": true
-}}"""
+위의 MotionText v2.0 JSON에서 텍스트를 수정하세요. RFC6902 JSON Patch 표준을 준수하여 출력하세요."""
 
             result = self.invoke_claude_with_chain(
                 prompt=edit_prompt,
@@ -1058,7 +1084,14 @@ JSON 형태로 응답:
                 save_response=False,
             )
 
-            # JSON 응답 파싱 시도
+            # MotionTextEditor 응답 파싱 시도
+            motion_result = self._parse_motion_text_editor_response(
+                result["completion"]
+            )
+            if motion_result["success"]:
+                return motion_result
+
+            # 파싱 실패시 기존 JSON 형식으로 fallback
             try:
                 import json
 
@@ -1097,30 +1130,13 @@ JSON 형태로 응답:
 
             scenario_json = json.dumps(scenario_data, indent=2, ensure_ascii=False)
 
-            style_prompt = f"""ECG 시나리오에서 자막 스타일을 수정해주세요.
+            style_prompt = f"""<user_instruction>{user_message}</user_instruction>
 
-사용자 요청: "{user_message}"
-
-현재 시나리오:
-```json
+<current_json>
 {scenario_json}
-```
+</current_json>
 
-스타일 속성:
-- color: 색상 (예: "#ff0000", "#00ff00")
-- fontSize: 크기 (예: 24, 32)
-- fontWeight: 굵기 (예: "bold", "normal")
-- textAlign: 정렬 (예: "center", "left")
-
-응답 형식 (JSON만):
-{{
-    "type": "style_edit",
-    "patches": [
-        {{"op": "replace", "path": "/cues/0/root/children/0/style/color", "value": "#ff0000"}}
-    ],
-    "explanation": "스타일 수정 설명",
-    "success": true
-}}"""
+위의 MotionText v2.0 JSON에서 스타일을 수정하세요. RFC6902 JSON Patch 표준을 준수하여 출력하세요."""
 
             result = self.invoke_claude_with_chain(
                 prompt=style_prompt,
@@ -1129,6 +1145,14 @@ JSON 형태로 응답:
                 save_response=False,
             )
 
+            # MotionTextEditor 응답 파싱 시도
+            motion_result = self._parse_motion_text_editor_response(
+                result["completion"]
+            )
+            if motion_result["success"]:
+                return motion_result
+
+            # 파싱 실패시 기존 JSON 형식으로 fallback
             try:
                 import json
 
@@ -1167,31 +1191,33 @@ JSON 형태로 응답:
 
             scenario_json = json.dumps(scenario_data, indent=2, ensure_ascii=False)
 
-            animation_prompt = f"""ECG 시나리오에 애니메이션 효과를 추가해주세요.
+            animation_prompt = f"""<user_instruction>{user_message}</user_instruction>
 
-사용자 요청: "{user_message}"
-
-현재 시나리오:
-```json
+<current_json>
 {scenario_json}
-```
+</current_json>
+
+위의 MotionText v2.0 JSON에 애니메이션 효과를 추가하세요. RFC6902 JSON Patch 표준을 준수하여 출력하세요.
 
 사용 가능한 애니메이션:
-- **rotation**: 회전 효과 {{"rotationDegrees": 360, "animationDuration": 1.0}}
-- **fadein**: 페이드인 {{"animationDuration": 1.0, "startOpacity": 0}}
-- **typewriter**: 타이핑 {{"typingSpeed": 50, "showCursor": true}}
-- **glow**: 글로우 {{"color": "#ffff00", "intensity": 2, "pulse": true}}
-- **scalepop**: 팝 효과 {{"popScale": 1.5, "animationDuration": 1.2}}
-
-응답 형식 (JSON만):
-{{
-    "type": "animation_request",
-    "patches": [
-        {{"op": "add", "path": "/cues/0/root/children/0/pluginChain", "value": [{{"name": "fadein", "params": {{"animationDuration": 1.0}}}}]}}
-    ],
-    "explanation": "애니메이션 추가 설명",
-    "success": true
-}}"""
+- **bobY**: 수직 바운싱 움직임 (amplitudePx, cycles)
+- **cwi-bouncing**: 바운싱 웨이브 (speaker, palette, color, waveHeight)
+- **cwi-color**: 색상 전환 효과 (speaker, palette, color, bulk)
+- **cwi-loud**: 큰 소리 애니메이션 (speaker, palette, color, pulse.scale, pulse.lift, tremble.ampPx, tremble.freq)
+- **cwi-whisper**: 속삭임 애니메이션 (speaker, palette, color, shrink.scale, shrink.drop, flutter.amp, flutter.freq)
+- **elastic**: 탄성 바운스 효과 (bounceStrength, animationDuration, staggerDelay, startScale, overshoot)
+- **fadein**: 페이드인 애니메이션 (staggerDelay, animationDuration, startOpacity, scaleStart, ease)
+- **flames**: 불꽃 효과 (baseOpacity, flicker, cycles)
+- **fliptype**: 플립 타이핑 애니메이션 (typingSpeed, flipDuration, flipAngle, flipDirection, typingDelay)
+- **glitch**: 글리치 효과 (glitchIntensity, animationDuration, glitchFrequency, colorSeparation, noiseEffect)
+- **glow**: 글로우 효과 (color, intensity, pulse, cycles)
+- **magnetic**: 자기 끌림 효과 (magnetStrength, animationDuration, attractionDelay, elasticity)
+- **pulse**: 펄스 애니메이션 (maxScale, cycles)
+- **rotation**: 3D 회전 효과 (rotationDegrees, animationDuration, staggerDelay, perspective, axisX, axisY, axisZ)
+- **scalepop**: 스케일 팝 효과 (popScale, animationDuration, staggerDelay, bounceStrength, colorPop)
+- **slideup**: 슬라이드업 애니메이션 (slideDistance, animationDuration, staggerDelay, easeType, blurEffect)
+- **spin**: 스핀 애니메이션 (fullTurns)
+- **typewriter**: 타이프라이터 효과 (typingSpeed, cursorBlink, cursorChar, showCursor, soundEffect)"""
 
             result = self.invoke_claude_with_chain(
                 prompt=animation_prompt,
@@ -1200,6 +1226,14 @@ JSON 형태로 응답:
                 save_response=False,
             )
 
+            # MotionTextEditor 응답 파싱 시도
+            motion_result = self._parse_motion_text_editor_response(
+                result["completion"]
+            )
+            if motion_result["success"]:
+                return motion_result
+
+            # 파싱 실패시 기존 JSON 형식으로 fallback
             try:
                 import json
 
@@ -1272,13 +1306,13 @@ ECG 주요 기능:
         """데모 프롬프트('!!'로 끝나는 경우) 처리 - 모든 단어에 Loud 애니메이션과 붉은 그라데이션 적용"""
         try:
             logger.info(
-                "🎭 Generating demo response with Loud animation and red gradient for all words"
+                " Generating demo response with Loud animation and red gradient for all words"
             )
 
             if not scenario_data or "cues" not in scenario_data:
                 logger.warning("⚠️  No scenario data available for demo")
                 return {
-                    "completion": "🎭 데모 모드가 활성화되었지만, 시나리오 데이터가 없어 적용할 수 없습니다.",
+                    "completion": "데모 모드가 활성화되었지만, 시나리오 데이터가 없어 적용할 수 없습니다.",
                     "stop_reason": "end_turn",
                     "usage": {"input_tokens": len(prompt.split()), "output_tokens": 20},
                     "model_id": self.llm.model_id,
@@ -1301,14 +1335,26 @@ ECG 주요 기능:
                 if "root" in cue and "children" in cue["root"]:
                     for child_index, child in enumerate(cue["root"]["children"]):
                         if child.get("type") == "word":
-                            # Loud 애니메이션 추가
+                            # cwi-loud 애니메이션 추가 (실제 플러그인 사용)
                             loud_plugin = {
-                                "name": "loud",
+                                "pluginId": "cwi-loud",
+                                "timeOffset": ["0%", "100%"],
                                 "params": {
-                                    "scaleAmount": 1.3,
-                                    "animationDuration": 0.8,
-                                    "bounceEffect": True,
-                                    "intensity": 2.0,
+                                    "color": "#ff0000",
+                                    "pulse": {"scale": 2.15, "lift": 12},
+                                    "tremble": {"ampPx": 1.5, "freq": 12},
+                                },
+                            }
+
+                            # 추가로 glow 효과도 적용
+                            glow_plugin = {
+                                "pluginId": "glow",
+                                "timeOffset": ["0%", "100%"],
+                                "params": {
+                                    "color": "#ff4444",
+                                    "intensity": 0.8,
+                                    "pulse": True,
+                                    "cycles": 8,
                                 },
                             }
 
@@ -1319,12 +1365,12 @@ ECG 주요 기능:
                                 "textShadow": "2px 2px 4px rgba(255, 0, 0, 0.5)",
                             }
 
-                            # pluginChain에 Loud 애니메이션 추가
+                            # pluginChain에 여러 애니메이션 추가
                             patches.append(
                                 {
                                     "op": "add",
                                     "path": f"/cues/{cue_index}/root/children/{child_index}/pluginChain",
-                                    "value": [loud_plugin],
+                                    "value": [loud_plugin, glow_plugin],
                                 }
                             )
 
@@ -1340,15 +1386,26 @@ ECG 주요 기능:
                                 }
                             )
 
+                            patches.append(
+                                {
+                                    "op": "replace",
+                                    "path": f"/cues/{cue_index}/root/children/{child_index}/style",
+                                    "value": {
+                                        **child.get("style", {}),
+                                        **red_gradient_style,
+                                    },
+                                }
+                            )
+
                             total_words_processed += 1
 
             logger.info(
-                f"🎯 Demo processing complete: {total_words_processed} words processed with Loud animation and red gradient"
+                f"🎯 Demo processing complete: {total_words_processed} words processed with cwi-loud + glow animations and red gradient"
             )
 
             # 데모 응답 반환
             return {
-                "completion": f"🎭 데모 모드 실행 완료! 총 {total_words_processed}개의 단어에 Loud 애니메이션과 화난 느낌의 붉은 그라데이션을 적용했습니다. 강렬하고 역동적인 효과로 시청자의 시선을 사로잡을 것입니다!",
+                "completion": f"🎭 데모 모드 실행 완료! 총 {total_words_processed}개의 단어에 cwi-loud (펄스+진동) + glow (글로우) 애니메이션과 화난 느낌의 붉은 그라데이션을 적용했습니다. 강렬하고 역동적인 효과로 시청자의 시선을 사로잡을 것입니다!",
                 "stop_reason": "end_turn",
                 "usage": {"input_tokens": len(prompt.split()), "output_tokens": 50},
                 "model_id": self.llm.model_id,
@@ -1356,7 +1413,7 @@ ECG 주요 기능:
                 "edit_result": {
                     "type": "style_edit",
                     "success": True,
-                    "explanation": f"데모 모드로 {total_words_processed}개 단어에 Loud 애니메이션과 붉은 그라데이션 효과를 일괄 적용했습니다.",
+                    "explanation": f" {total_words_processed}개 단어에 Loud 애니메이션과 붉은 그라데이션 효과를 일괄 적용했습니다.",
                 },
                 "json_patches": patches,
                 "has_scenario_edits": True,
@@ -1366,7 +1423,7 @@ ECG 주요 기능:
         except Exception as e:
             logger.error(f"❌ Demo response generation failed: {e}")
             return {
-                "completion": f"🎭 데모 모드 실행 중 오류가 발생했습니다: {str(e)}",
+                "completion": f"실행 중 오류가 발생했습니다: {str(e)}",
                 "stop_reason": "end_turn",
                 "usage": {"input_tokens": len(prompt.split()), "output_tokens": 20},
                 "model_id": self.llm.model_id,
@@ -1374,13 +1431,174 @@ ECG 주요 기능:
                 "edit_result": {
                     "type": "error",
                     "success": False,
-                    "explanation": f"데모 모드 실행 실패: {str(e)}",
+                    "explanation": f"실행 실패: {str(e)}",
                     "error": str(e),
                 },
                 "json_patches": [],
                 "has_scenario_edits": False,
                 "demo_mode": True,
             }
+
+    def _parse_motion_text_editor_response(self, response_text: str) -> Dict[str, Any]:
+        """MotionTextEditor 표준 응답 파싱 (CDATA 형식 json_patch_chunk)"""
+        try:
+            import re
+            import json
+
+            logger.info("🔍 Parsing MotionTextEditor response format")
+
+            # summary 추출
+            summary_match = re.search(
+                r"<summary>(.*?)</summary>", response_text, re.DOTALL
+            )
+            summary = summary_match.group(1).strip() if summary_match else ""
+
+            # json_patch_chunk 추출
+            chunk_pattern = r"<json_patch_chunk[^>]*>(.*?)</json_patch_chunk>"
+            chunks = re.findall(chunk_pattern, response_text, re.DOTALL)
+
+            # apply_order 추출
+            order_match = re.search(
+                r"<apply_order>(.*?)</apply_order>", response_text, re.DOTALL
+            )
+            apply_order = order_match.group(1).strip() if order_match else "1"
+
+            all_patches = []
+
+            for chunk_content in chunks:
+                # CDATA 내용 추출
+                cdata_match = re.search(
+                    r"<!\[CDATA\[(.*?)\]\]>", chunk_content, re.DOTALL
+                )
+                if cdata_match:
+                    patch_json = cdata_match.group(1).strip()
+                    try:
+                        patches = json.loads(patch_json)
+                        if isinstance(patches, list):
+                            all_patches.extend(patches)
+                        else:
+                            all_patches.append(patches)
+                    except json.JSONDecodeError as e:
+                        logger.warning(f"JSON parsing failed for chunk: {e}")
+
+            logger.info(
+                f"✅ Parsed {len(all_patches)} patches from MotionTextEditor response"
+            )
+
+            return {
+                "type": "motion_text_edit",
+                "patches": all_patches,
+                "summary": summary,
+                "apply_order": apply_order,
+                "success": len(all_patches) > 0,
+                "explanation": summary or "MotionTextEditor 표준 응답 처리 완료",
+                "langchain_used": True,
+            }
+
+        except Exception as e:
+            logger.error(f"MotionTextEditor response parsing failed: {e}")
+            logger.debug(f"Response text: {response_text[:500]}...")
+
+            # 파싱 실패시 기존 JSON 형식으로 fallback 시도
+            try:
+                legacy_result = json.loads(response_text)
+                if isinstance(legacy_result, dict) and "patches" in legacy_result:
+                    return {
+                        **legacy_result,
+                        "langchain_used": True,
+                        "fallback_parsing": True,
+                    }
+            except Exception:
+                pass
+
+            return {
+                "type": "motion_text_edit",
+                "patches": [],
+                "summary": "",
+                "success": False,
+                "error": f"응답 파싱 실패: {str(e)}",
+                "explanation": "MotionTextEditor 응답 형식 파싱에 실패했습니다.",
+                "langchain_used": True,
+            }
+
+    def _estimate_token_count(self, text: str) -> int:
+        """토큰 수 추정 (대략적 계산)"""
+        # 간단한 토큰 수 추정: 단어 수 * 1.3 (한국어/영어 혼재 고려)
+        return int(len(text.split()) * 1.3)
+
+    def _should_chunk_response(self, response_text: str) -> bool:
+        """응답이 청킹이 필요한지 확인 (1800토큰 기준)"""
+        estimated_tokens = self._estimate_token_count(response_text)
+        return estimated_tokens > 1800
+
+    def _validate_motion_text_schema(
+        self, scenario_data: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """MotionText v2.0 스키마 요구사항 검증"""
+        validation_result = {"valid": True, "errors": [], "warnings": []}
+
+        try:
+            # 1. version 확인
+            if not scenario_data.get("version"):
+                validation_result["errors"].append("Missing version field")
+            elif scenario_data.get("version") != "2.0":
+                validation_result["warnings"].append(
+                    f"Version {scenario_data.get('version')} != 2.0"
+                )
+
+            # 2. timebase 확인
+            timebase = scenario_data.get("timebase")
+            if not timebase:
+                validation_result["errors"].append("Missing timebase field")
+            else:
+                if not timebase.get("unit") == "seconds":
+                    validation_result["errors"].append(
+                        "timebase.unit must be 'seconds'"
+                    )
+                if not isinstance(timebase.get("fps"), (int, float)):
+                    validation_result["errors"].append("timebase.fps must be a number")
+
+            # 3. cues 구조 확인
+            cues = scenario_data.get("cues", [])
+            if not isinstance(cues, list):
+                validation_result["errors"].append("cues must be an array")
+            else:
+                for i, cue in enumerate(cues):
+                    # displayTime 확인
+                    display_time = cue.get("displayTime")
+                    if not isinstance(display_time, list) or len(display_time) != 2:
+                        validation_result["errors"].append(
+                            f"cues[{i}].displayTime must be [start, end] array"
+                        )
+
+                    # eType 확인 (root 노드)
+                    root = cue.get("root", {})
+                    if root.get("eType") not in ["group", "text", "image", "video"]:
+                        validation_result["errors"].append(
+                            f"cues[{i}].root.eType must be one of: group, text, image, video"
+                        )
+
+                    # node_id 확인
+                    if not root.get("id"):
+                        validation_result["warnings"].append(
+                            f"cues[{i}].root missing id field"
+                        )
+
+            validation_result["valid"] = len(validation_result["errors"]) == 0
+
+            if validation_result["valid"]:
+                logger.info("✅ MotionText v2.0 schema validation passed")
+            else:
+                logger.warning(
+                    f"⚠️ Schema validation failed: {validation_result['errors']}"
+                )
+
+        except Exception as e:
+            validation_result["valid"] = False
+            validation_result["errors"].append(f"Schema validation error: {str(e)}")
+            logger.error(f"Schema validation exception: {e}")
+
+        return validation_result
 
 
 # 전역 인스턴스 (싱글톤 패턴)
