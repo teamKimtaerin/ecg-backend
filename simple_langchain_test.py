@@ -94,8 +94,7 @@ def test_chain_construction():
                 return f"Mock response to: {messages.messages[-1].content}"
             return f"Mock response to: {str(messages)}"
 
-        parser = StrOutputParser()
-
+        StrOutputParser()
 
         StrOutputParser()
 
