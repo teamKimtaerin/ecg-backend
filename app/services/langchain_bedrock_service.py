@@ -12,7 +12,6 @@ from langchain_core.memory import ConversationBufferMemory
 from langchain_core.output_parsers import StrOutputParser
 
 from app.core.config import settings
-from app.utils.file_utils import response_file_manager
 from app.schemas.chatbot import ChatMessage
 
 logger = logging.getLogger(__name__)
@@ -137,7 +136,6 @@ class LangChainBedrockService:
         scenario_data: Optional[Dict[str, Any]] = None,
         max_tokens: int = 1000,
         temperature: float = 0.7,
-        save_response: bool = True,
     ) -> Dict[str, Any]:
         """
         LangChain 체인을 사용하여 Claude 모델 호출
@@ -147,17 +145,12 @@ class LangChainBedrockService:
             conversation_history: 대화 히스토리
             max_tokens: 최대 토큰 수
             temperature: 창의성 조절 (0.0-1.0)
-            save_response: 응답을 파일로 저장할지 여부
 
         Returns:
             Dict containing completion and metadata
         """
         try:
             # 데모 프롬프트 체크 ('!!'로 끝나는 경우)
-            if prompt.strip().endswith("!!"):
-                logger.info(
-                    "🎭 DEMO PROMPT DETECTED - generating demo response with Loud animation and red gradient"
-                )
             if prompt.strip().endswith("!!"):
                 logger.info(
                     "🎭 DEMO PROMPT DETECTED - generating demo response with Loud animation and red gradient"
@@ -320,39 +313,6 @@ class LangChainBedrockService:
                 },
             }
 
-            # 응답 저장 (옵션)
-            if save_response:
-                try:
-                    # JSON 형태로 전체 응답 저장
-                    json_file_path = response_file_manager.save_response(
-                        data=result, prefix="langchain_bedrock_response"
-                    )
-
-                    # 텍스트만 별도 저장
-                    text_file_path = response_file_manager.save_text_response(
-                        text=completion,
-                        prefix="langchain_bedrock_completion",
-                        metadata={
-                            "model_id": self.llm.model_id,
-                            "langchain_used": True,
-                            "temperature": temperature,
-                            "max_tokens": max_tokens,
-                        },
-                    )
-
-                    result["saved_files"] = {
-                        "json_file": json_file_path,
-                        "text_file": text_file_path,
-                    }
-
-                    logger.info(
-                        f"LangChain response saved to files: {json_file_path}, {text_file_path}"
-                    )
-
-                except Exception as save_error:
-                    logger.warning(f"Failed to save LangChain response: {save_error}")
-                    result["save_error"] = str(save_error)
-
             return result
 
         except Exception as e:
@@ -380,36 +340,11 @@ class LangChainBedrockService:
                 prompt="안녕하세요",
                 max_tokens=50,
                 temperature=0.1,
-                save_response=False,
             )
             return "completion" in test_result and len(test_result["completion"]) > 0
         except Exception as e:
             logger.error(f"LangChain connection test failed: {e}")
             return False
-
-    def get_saved_responses(self, pattern: str = "langchain_bedrock_*") -> List[str]:
-        """
-        저장된 LangChain 응답 파일 목록 조회
-
-        Args:
-            pattern: 파일 패턴
-
-        Returns:
-            List[str]: 파일 목록
-        """
-        return response_file_manager.list_saved_files(pattern)
-
-    def get_response_file_info(self, filename: str) -> Dict[str, Any]:
-        """
-        LangChain 응답 파일 정보 조회
-
-        Args:
-            filename: 파일명
-
-        Returns:
-            Dict: 파일 정보
-        """
-        return response_file_manager.get_file_info(filename)
 
     def create_multi_step_chain(
         self,
@@ -453,7 +388,6 @@ class LangChainBedrockService:
                     prompt=full_prompt,
                     max_tokens=max_tokens,
                     temperature=temperature,
-                    save_response=False,
                 )
 
                 results[step_name] = {
@@ -517,7 +451,6 @@ class LangChainBedrockService:
                     prompt=task_prompt,
                     max_tokens=max_tokens,
                     temperature=temperature,
-                    save_response=False,
                 )
 
                 results[task_name] = {
@@ -571,7 +504,6 @@ class LangChainBedrockService:
                 prompt=initial_prompt,
                 max_tokens=max_tokens,
                 temperature=temperature,
-                save_response=False,
             )
 
             initial_response = initial_result["completion"].lower()
@@ -599,7 +531,6 @@ class LangChainBedrockService:
                     prompt=context_prompt,
                     max_tokens=max_tokens,
                     temperature=temperature,
-                    save_response=False,
                 )
 
                 final_result = {
@@ -683,7 +614,6 @@ class LangChainBedrockService:
                 prompt=classification_prompt,
                 max_tokens=200,
                 temperature=0.1,
-                save_response=False,
             )
 
             logger.info("Step 1 completed: Message classification")
@@ -761,7 +691,6 @@ ECG 주요 기능:
                     prompt=info_prompt,
                     max_tokens=max_tokens,
                     temperature=temperature,
-                    save_response=False,
                 )
 
                 return {
@@ -809,7 +738,6 @@ JSON patch 형태로 수정사항을 제공해주세요. 기존 구조를 유지
                     prompt=edit_prompt,
                     max_tokens=max_tokens,
                     temperature=0.1,
-                    save_response=False,
                 )
 
                 return {
@@ -883,7 +811,6 @@ JSON patch 형태로 수정사항을 제공해주세요. 기존 구조를 유지
                     prompt=category_prompt,
                     max_tokens=300,
                     temperature=0.2,
-                    save_response=False,
                 )
 
                 # 단계 4: 애니메이션 JSON 생성 (manifest 스키마 기반)
@@ -936,7 +863,6 @@ JSON patch 형태로 수정사항을 제공해주세요. 기존 구조를 유지
                     prompt=animation_prompt,
                     max_tokens=max_tokens,
                     temperature=0.3,
-                    save_response=False,
                 )
 
                 return {
@@ -996,7 +922,6 @@ JSON 형태로 응답:
                 prompt=classification_prompt,
                 max_tokens=200,
                 temperature=0.1,
-                save_response=False,
             )
 
             logger.info(
@@ -1081,7 +1006,6 @@ JSON 형태로 응답:
                 prompt=edit_prompt,
                 max_tokens=max_tokens,
                 temperature=temperature,
-                save_response=False,
             )
 
             # MotionTextEditor 응답 파싱 시도
@@ -1142,7 +1066,6 @@ JSON 형태로 응답:
                 prompt=style_prompt,
                 max_tokens=max_tokens,
                 temperature=temperature,
-                save_response=False,
             )
 
             # MotionTextEditor 응답 파싱 시도
@@ -1223,7 +1146,6 @@ JSON 형태로 응답:
                 prompt=animation_prompt,
                 max_tokens=max_tokens,
                 temperature=temperature,
-                save_response=False,
             )
 
             # MotionTextEditor 응답 파싱 시도
@@ -1280,7 +1202,6 @@ ECG 주요 기능:
                 prompt=info_prompt,
                 max_tokens=max_tokens,
                 temperature=temperature,
-                save_response=False,
             )
 
             return {
@@ -1386,17 +1307,6 @@ ECG 주요 기능:
                                 }
                             )
 
-                            patches.append(
-                                {
-                                    "op": "replace",
-                                    "path": f"/cues/{cue_index}/root/children/{child_index}/style",
-                                    "value": {
-                                        **child.get("style", {}),
-                                        **red_gradient_style,
-                                    },
-                                }
-                            )
-
                             total_words_processed += 1
 
             logger.info(
@@ -1413,7 +1323,7 @@ ECG 주요 기능:
                 "edit_result": {
                     "type": "style_edit",
                     "success": True,
-                    "explanation": f" {total_words_processed}개 단어에 Loud 애니메이션과 붉은 그라데이션 효과를 일괄 적용했습니다.",
+                    "explanation": f"데모 모드로 {total_words_processed}개 단어에 Loud 애니메이션과 붉은 그라데이션 효과를 일괄 적용했습니다.",
                 },
                 "json_patches": patches,
                 "has_scenario_edits": True,

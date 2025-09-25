@@ -12,13 +12,6 @@ class ChatMessage(BaseModel):
     timestamp: datetime = Field(..., description="메시지 생성 시간")
 
 
-class SavedFiles(BaseModel):
-    """저장된 파일 정보 스키마"""
-
-    json_file: Optional[str] = Field(default=None, description="JSON 형태로 저장된 파일 경로")
-    text_file: Optional[str] = Field(default=None, description="텍스트 형태로 저장된 파일 경로")
-
-
 class ChatBotRequest(BaseModel):
     """ChatBot API 요청 스키마"""
 
@@ -35,7 +28,6 @@ class ChatBotRequest(BaseModel):
     temperature: Optional[float] = Field(
         default=0.7, description="온도 (백엔드에서 0.7로 고정 설정됨)", ge=0.0, le=1.0
     )
-    save_response: Optional[bool] = Field(default=True, description="응답을 파일로 저장할지 여부")
     use_langchain: Optional[bool] = Field(default=True, description="LangChain 사용 여부")
 
     class Config:
@@ -75,7 +67,6 @@ class ChatBotRequest(BaseModel):
                 },
                 "max_tokens": 1000,
                 "temperature": 0.7,
-                "save_response": True,
                 "use_langchain": True,
             }
         }
@@ -88,8 +79,6 @@ class ChatBotResponse(BaseModel):
     stop_reason: str = Field(..., description="응답 종료 이유")
     usage: Optional[Dict[str, Any]] = Field(default=None, description="토큰 사용량 정보")
     processing_time_ms: Optional[int] = Field(default=None, description="처리 시간 (밀리초)")
-    saved_files: Optional[SavedFiles] = Field(default=None, description="저장된 파일 정보")
-    save_error: Optional[str] = Field(default=None, description="파일 저장 중 발생한 오류")
 
     # 시나리오 편집 관련 필드
     edit_result: Optional[Dict[str, Any]] = Field(default=None, description="편집 결과 정보")
@@ -105,10 +94,6 @@ class ChatBotResponse(BaseModel):
                 "stop_reason": "end_turn",
                 "usage": {"input_tokens": 120, "output_tokens": 280},
                 "processing_time_ms": 2100,
-                "saved_files": {
-                    "json_file": "/Users/kimdong-gyu/Documents/GitHub/ecg-front/ecg-frontend/out/bedrock_response_20241201_143022.json",
-                    "text_file": "/Users/kimdong-gyu/Documents/GitHub/ecg-front/ecg-frontend/out/bedrock_completion_20241201_143022.txt",
-                },
                 "edit_result": {
                     "type": "motion_text_edit",
                     "success": True,
@@ -122,27 +107,6 @@ class ChatBotResponse(BaseModel):
                     }
                 ],
                 "has_scenario_edits": True,
-            }
-        }
-
-
-class SavedFileInfo(BaseModel):
-    """저장된 파일 정보 스키마"""
-
-    filename: str = Field(..., description="파일명")
-    path: str = Field(..., description="파일 경로")
-    size: int = Field(..., description="파일 크기 (바이트)")
-    created: str = Field(..., description="파일 생성 시간 (ISO 형식)")
-    modified: str = Field(..., description="파일 수정 시간 (ISO 형식)")
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "filename": "bedrock_response_20241201_143022.json",
-                "path": "output/bedrock_response_20241201_143022.json",
-                "size": 1024,
-                "created": "2024-12-01T14:30:22.123456",
-                "modified": "2024-12-01T14:30:22.123456",
             }
         }
 
