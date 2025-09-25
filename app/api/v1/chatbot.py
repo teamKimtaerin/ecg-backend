@@ -99,9 +99,10 @@ async def send_chatbot_message(request: ChatBotRequest) -> ChatBotResponse:
             f"ChatBot request received: prompt length={len(request.prompt)}, use_langchain={request.use_langchain}, has_scenario={request.scenario_data is not None}"
         )
 
-        # LangChain 사용 여부에 따라 다른 서비스 호출
-        if request.use_langchain:
+        # 시나리오 데이터가 있거나 LangChain이 요청된 경우 LangChain 사용
+        if request.use_langchain or request.scenario_data is not None:
             # LangChain을 통한 호출 (시나리오 데이터 포함)
+            logger.info("Using LangChain service for enhanced scenario processing")
             result = langchain_bedrock_service.invoke_claude_with_chain(
                 prompt=request.prompt,
                 conversation_history=request.conversation_history,
@@ -111,7 +112,8 @@ async def send_chatbot_message(request: ChatBotRequest) -> ChatBotResponse:
                 save_response=request.save_response,
             )
         else:
-            # 기존 직접 API 호출 방식
+            # 기존 직접 API 호출 방식 (시나리오 데이터 없는 경우만)
+            logger.info("Using basic Bedrock service")
             # 프롬프트 구성
             full_prompt = build_context_prompt(request)
             logger.debug(f"Full prompt preview: {full_prompt[:200]}...")
