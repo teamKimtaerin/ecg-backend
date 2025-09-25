@@ -124,6 +124,13 @@ ECG 주요 기능:
             Dict containing completion and metadata
         """
         try:
+            # 데모 프롬프트 체크 ('!!'로 끝나는 경우)
+            if prompt.strip().endswith("!!"):
+                logger.info(
+                    "🎭 DEMO PROMPT DETECTED - generating demo response with Loud animation and red gradient"
+                )
+                return self._generate_demo_response(scenario_data, prompt)
+
             # 모델 파라미터 업데이트
             self.llm.model_kwargs.update(
                 {
@@ -1257,6 +1264,122 @@ ECG 주요 기능:
                 "error": f"정보 요청 처리 실패: {str(e)}",
                 "success": False,
                 "langchain_used": True,
+            }
+
+    def _generate_demo_response(
+        self, scenario_data: Optional[Dict[str, Any]], prompt: str
+    ) -> Dict[str, Any]:
+        """데모 프롬프트('!!'로 끝나는 경우) 처리 - 모든 단어에 Loud 애니메이션과 붉은 그라데이션 적용"""
+        try:
+            logger.info(
+                "🎭 Generating demo response with Loud animation and red gradient for all words"
+            )
+
+            if not scenario_data or "cues" not in scenario_data:
+                logger.warning("⚠️  No scenario data available for demo")
+                return {
+                    "completion": "🎭 데모 모드가 활성화되었지만, 시나리오 데이터가 없어 적용할 수 없습니다.",
+                    "stop_reason": "end_turn",
+                    "usage": {"input_tokens": len(prompt.split()), "output_tokens": 20},
+                    "model_id": self.llm.model_id,
+                    "langchain_used": True,
+                    "edit_result": {
+                        "type": "error",
+                        "success": False,
+                        "explanation": "시나리오 데이터가 없어 데모를 실행할 수 없습니다.",
+                        "error": "No scenario data",
+                    },
+                    "json_patches": [],
+                    "has_scenario_edits": False,
+                }
+
+            patches = []
+            total_words_processed = 0
+
+            # 모든 cue를 순회하면서 단어들에 Loud 애니메이션과 붉은 그라데이션 적용
+            for cue_index, cue in enumerate(scenario_data.get("cues", [])):
+                if "root" in cue and "children" in cue["root"]:
+                    for child_index, child in enumerate(cue["root"]["children"]):
+                        if child.get("type") == "word":
+                            # Loud 애니메이션 추가
+                            loud_plugin = {
+                                "name": "loud",
+                                "params": {
+                                    "scaleAmount": 1.3,
+                                    "animationDuration": 0.8,
+                                    "bounceEffect": True,
+                                    "intensity": 2.0,
+                                },
+                            }
+
+                            # 붉은 그라데이션 색상 스타일 추가
+                            red_gradient_style = {
+                                "fill": "linear-gradient(45deg, #ff4444, #cc0000, #ff6666, #990000)",
+                                "fontWeight": "bold",
+                                "textShadow": "2px 2px 4px rgba(255, 0, 0, 0.5)",
+                            }
+
+                            # pluginChain에 Loud 애니메이션 추가
+                            patches.append(
+                                {
+                                    "op": "add",
+                                    "path": f"/cues/{cue_index}/root/children/{child_index}/pluginChain",
+                                    "value": [loud_plugin],
+                                }
+                            )
+
+                            # 스타일에 붉은 그라데이션 추가
+                            patches.append(
+                                {
+                                    "op": "replace",
+                                    "path": f"/cues/{cue_index}/root/children/{child_index}/style",
+                                    "value": {
+                                        **child.get("style", {}),
+                                        **red_gradient_style,
+                                    },
+                                }
+                            )
+
+                            total_words_processed += 1
+
+            logger.info(
+                f"🎯 Demo processing complete: {total_words_processed} words processed with Loud animation and red gradient"
+            )
+
+            # 데모 응답 반환
+            return {
+                "completion": f"🎭 데모 모드 실행 완료! 총 {total_words_processed}개의 단어에 Loud 애니메이션과 화난 느낌의 붉은 그라데이션을 적용했습니다. 강렬하고 역동적인 효과로 시청자의 시선을 사로잡을 것입니다!",
+                "stop_reason": "end_turn",
+                "usage": {"input_tokens": len(prompt.split()), "output_tokens": 50},
+                "model_id": self.llm.model_id,
+                "langchain_used": True,
+                "edit_result": {
+                    "type": "style_edit",
+                    "success": True,
+                    "explanation": f"데모 모드로 {total_words_processed}개 단어에 Loud 애니메이션과 붉은 그라데이션 효과를 일괄 적용했습니다.",
+                },
+                "json_patches": patches,
+                "has_scenario_edits": True,
+                "demo_mode": True,
+            }
+
+        except Exception as e:
+            logger.error(f"❌ Demo response generation failed: {e}")
+            return {
+                "completion": f"🎭 데모 모드 실행 중 오류가 발생했습니다: {str(e)}",
+                "stop_reason": "end_turn",
+                "usage": {"input_tokens": len(prompt.split()), "output_tokens": 20},
+                "model_id": self.llm.model_id,
+                "langchain_used": True,
+                "edit_result": {
+                    "type": "error",
+                    "success": False,
+                    "explanation": f"데모 모드 실행 실패: {str(e)}",
+                    "error": str(e),
+                },
+                "json_patches": [],
+                "has_scenario_edits": False,
+                "demo_mode": True,
             }
 
 
