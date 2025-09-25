@@ -95,7 +95,9 @@ async def send_chatbot_message(request: ChatBotRequest) -> ChatBotResponse:
     start_time = time.time()
 
     try:
-        logger.info(f"ChatBot request received: prompt length={len(request.prompt)}, use_langchain={request.use_langchain}")
+        logger.info(
+            f"ChatBot request received: prompt length={len(request.prompt)}, use_langchain={request.use_langchain}"
+        )
 
         # LangChain 사용 여부에 따라 다른 서비스 호출
         if request.use_langchain:
@@ -190,12 +192,14 @@ async def chatbot_health_check() -> Dict[str, Any]:
     try:
         # 기존 Bedrock 연결 테스트
         is_bedrock_healthy = bedrock_service.test_connection()
-        
+
         # LangChain Bedrock 연결 테스트
         is_langchain_healthy = langchain_bedrock_service.test_connection()
 
         return {
-            "status": "healthy" if (is_bedrock_healthy and is_langchain_healthy) else "unhealthy",
+            "status": "healthy"
+            if (is_bedrock_healthy and is_langchain_healthy)
+            else "unhealthy",
             "bedrock_connection": is_bedrock_healthy,
             "langchain_connection": is_langchain_healthy,
             "timestamp": time.time(),
@@ -299,17 +303,19 @@ async def get_file_info(filename: str) -> SavedFileInfo:
 async def send_langchain_chatbot_message(request: ChatBotRequest) -> ChatBotResponse:
     """
     LangChain을 사용하여 ChatBot에게 메시지를 전송합니다.
-    
+
     이 엔드포인트는 항상 LangChain을 사용하며 다음 고급 기능을 제공합니다:
     - 대화 메모리 관리
     - 프롬프트 템플릿
     - 체인 기반 처리
     """
     start_time = time.time()
-    
+
     try:
-        logger.info(f"LangChain ChatBot request received: prompt length={len(request.prompt)}")
-        
+        logger.info(
+            f"LangChain ChatBot request received: prompt length={len(request.prompt)}"
+        )
+
         # LangChain을 통한 호출 (강제)
         result = langchain_bedrock_service.invoke_claude_with_chain(
             prompt=request.prompt,
@@ -318,12 +324,14 @@ async def send_langchain_chatbot_message(request: ChatBotRequest) -> ChatBotResp
             temperature=request.temperature,
             save_response=request.save_response,
         )
-        
+
         # 처리 시간 계산
         processing_time_ms = int((time.time() - start_time) * 1000)
-        
-        logger.info(f"LangChain ChatBot response generated successfully in {processing_time_ms}ms")
-        
+
+        logger.info(
+            f"LangChain ChatBot response generated successfully in {processing_time_ms}ms"
+        )
+
         # 응답 구성
         response_data = {
             "completion": result["completion"],
@@ -331,16 +339,16 @@ async def send_langchain_chatbot_message(request: ChatBotRequest) -> ChatBotResp
             "usage": result.get("usage"),
             "processing_time_ms": processing_time_ms,
         }
-        
+
         # 파일 저장 정보 추가
         if "saved_files" in result:
             response_data["saved_files"] = result["saved_files"]
-            
+
         if "save_error" in result:
             response_data["save_error"] = result["save_error"]
-            
+
         return ChatBotResponse(**response_data)
-        
+
     except ValueError as e:
         logger.error(f"LangChain validation error: {e}")
         raise HTTPException(
@@ -351,10 +359,10 @@ async def send_langchain_chatbot_message(request: ChatBotRequest) -> ChatBotResp
                 "details": str(e),
             },
         )
-        
+
     except Exception as e:
         logger.error(f"LangChain ChatBot API error: {e}")
-        
+
         # LangChain 관련 에러인지 확인
         error_message = str(e)
         if "langchain" in error_message.lower() or "bedrock" in error_message.lower():
@@ -363,7 +371,7 @@ async def send_langchain_chatbot_message(request: ChatBotRequest) -> ChatBotResp
         else:
             status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
             error_code = "INTERNAL_SERVER_ERROR"
-            
+
         raise HTTPException(
             status_code=status_code,
             detail={
