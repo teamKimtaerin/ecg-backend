@@ -8,7 +8,7 @@ from langchain_core.prompts import (
     SystemMessagePromptTemplate,
     HumanMessagePromptTemplate,
 )
-from langchain_core.memory import ConversationBufferMemory
+from langchain.memory import ConversationBufferMemory
 from langchain_core.output_parsers import StrOutputParser
 
 from app.core.config import settings
