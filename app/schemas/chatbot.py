@@ -33,6 +33,7 @@ class ChatBotRequest(BaseModel):
         default=0.7, description="온도 (창의성 조절)", ge=0.0, le=1.0
     )
     save_response: Optional[bool] = Field(default=True, description="응답을 파일로 저장할지 여부")
+    use_langchain: Optional[bool] = Field(default=False, description="LangChain 사용 여부")
 
     class Config:
         json_schema_extra = {
@@ -55,6 +56,7 @@ class ChatBotRequest(BaseModel):
                 "max_tokens": 1000,
                 "temperature": 0.7,
                 "save_response": True,
+                "use_langchain": False,
             }
         }
 

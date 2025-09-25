@@ -10,6 +10,7 @@ from app.schemas.chatbot import (
     SavedFileInfo,
 )
 from app.services.bedrock_service import bedrock_service
+from app.services.langchain_bedrock_service import langchain_bedrock_service
 
 # 로거 설정
 logger = logging.getLogger(__name__)
@@ -89,24 +90,38 @@ async def send_chatbot_message(request: ChatBotRequest) -> ChatBotResponse:
     - **max_tokens**: 최대 응답 토큰 수 (기본값: 1000)
     - **temperature**: 창의성 조절 (0.0-1.0, 기본값: 0.7)
     - **save_response**: 응답을 파일로 저장할지 여부 (기본값: True)
+    - **use_langchain**: LangChain 사용 여부 (기본값: False)
     """
     start_time = time.time()
 
     try:
-        logger.info(f"ChatBot request received: prompt length={len(request.prompt)}")
-
-        # 프롬프트 구성
-        full_prompt = build_context_prompt(request)
-
-        logger.debug(f"Full prompt preview: {full_prompt[:200]}...")
-
-        # Bedrock 서비스 호출 (파일 저장 포함)
-        result = bedrock_service.invoke_claude(
-            prompt=full_prompt,
-            max_tokens=request.max_tokens,
-            temperature=request.temperature,
-            save_response=request.save_response,
+        logger.info(
+            f"ChatBot request received: prompt length={len(request.prompt)}, use_langchain={request.use_langchain}"
         )
+
+        # LangChain 사용 여부에 따라 다른 서비스 호출
+        if request.use_langchain:
+            # LangChain을 통한 호출
+            result = langchain_bedrock_service.invoke_claude_with_chain(
+                prompt=request.prompt,
+                conversation_history=request.conversation_history,
+                max_tokens=request.max_tokens,
+                temperature=request.temperature,
+                save_response=request.save_response,
+            )
+        else:
+            # 기존 직접 API 호출 방식
+            # 프롬프트 구성
+            full_prompt = build_context_prompt(request)
+            logger.debug(f"Full prompt preview: {full_prompt[:200]}...")
+
+            # Bedrock 서비스 호출 (파일 저장 포함)
+            result = bedrock_service.invoke_claude(
+                prompt=full_prompt,
+                max_tokens=request.max_tokens,
+                temperature=request.temperature,
+                save_response=request.save_response,
+            )
 
         # 처리 시간 계산
         processing_time_ms = int((time.time() - start_time) * 1000)
@@ -175,12 +190,18 @@ async def chatbot_health_check() -> Dict[str, Any]:
     ChatBot 서비스 상태를 확인합니다.
     """
     try:
-        # Bedrock 연결 테스트
+        # 기존 Bedrock 연결 테스트
         is_bedrock_healthy = bedrock_service.test_connection()
 
+        # LangChain Bedrock 연결 테스트
+        is_langchain_healthy = langchain_bedrock_service.test_connection()
+
         return {
-            "status": "healthy" if is_bedrock_healthy else "unhealthy",
+            "status": "healthy"
+            if (is_bedrock_healthy and is_langchain_healthy)
+            else "unhealthy",
             "bedrock_connection": is_bedrock_healthy,
+            "langchain_connection": is_langchain_healthy,
             "timestamp": time.time(),
             "service": "ECG ChatBot API",
         }
@@ -190,6 +211,7 @@ async def chatbot_health_check() -> Dict[str, Any]:
         return {
             "status": "unhealthy",
             "bedrock_connection": False,
+            "langchain_connection": False,
             "error": str(e),
             "timestamp": time.time(),
             "service": "ECG ChatBot API",
@@ -263,5 +285,98 @@ async def get_file_info(filename: str) -> SavedFileInfo:
                 "error": "파일 정보를 가져오는데 실패했습니다",
                 "error_code": "FILE_INFO_ERROR",
                 "details": str(e),
+            },
+        )
+
+
+@router.post(
+    "/langchain",
+    response_model=ChatBotResponse,
+    responses={
+        400: {"model": ChatBotErrorResponse, "description": "잘못된 요청"},
+        500: {"model": ChatBotErrorResponse, "description": "서버 내부 오류"},
+        503: {"model": ChatBotErrorResponse, "description": "외부 서비스 이용 불가"},
+    },
+    summary="LangChain ChatBot 메시지 전송",
+    description="LangChain을 사용하여 ECG ChatBot과 대화하는 전용 엔드포인트입니다. 고급 기능(메모리, 체인)을 제공합니다.",
+)
+async def send_langchain_chatbot_message(request: ChatBotRequest) -> ChatBotResponse:
+    """
+    LangChain을 사용하여 ChatBot에게 메시지를 전송합니다.
+
+    이 엔드포인트는 항상 LangChain을 사용하며 다음 고급 기능을 제공합니다:
+    - 대화 메모리 관리
+    - 프롬프트 템플릿
+    - 체인 기반 처리
+    """
+    start_time = time.time()
+
+    try:
+        logger.info(
+            f"LangChain ChatBot request received: prompt length={len(request.prompt)}"
+        )
+
+        # LangChain을 통한 호출 (강제)
+        result = langchain_bedrock_service.invoke_claude_with_chain(
+            prompt=request.prompt,
+            conversation_history=request.conversation_history,
+            max_tokens=request.max_tokens,
+            temperature=request.temperature,
+            save_response=request.save_response,
+        )
+
+        # 처리 시간 계산
+        processing_time_ms = int((time.time() - start_time) * 1000)
+
+        logger.info(
+            f"LangChain ChatBot response generated successfully in {processing_time_ms}ms"
+        )
+
+        # 응답 구성
+        response_data = {
+            "completion": result["completion"],
+            "stop_reason": result["stop_reason"],
+            "usage": result.get("usage"),
+            "processing_time_ms": processing_time_ms,
+        }
+
+        # 파일 저장 정보 추가
+        if "saved_files" in result:
+            response_data["saved_files"] = result["saved_files"]
+
+        if "save_error" in result:
+            response_data["save_error"] = result["save_error"]
+
+        return ChatBotResponse(**response_data)
+
+    except ValueError as e:
+        logger.error(f"LangChain validation error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error": "요청 형식이 올바르지 않습니다",
+                "error_code": "VALIDATION_ERROR",
+                "details": str(e),
+            },
+        )
+
+    except Exception as e:
+        logger.error(f"LangChain ChatBot API error: {e}")
+
+        # LangChain 관련 에러인지 확인
+        error_message = str(e)
+        if "langchain" in error_message.lower() or "bedrock" in error_message.lower():
+            status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+            error_code = "LANGCHAIN_API_ERROR"
+        else:
+            status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+            error_code = "INTERNAL_SERVER_ERROR"
+
+        raise HTTPException(
+            status_code=status_code,
+            detail={
+                "error": error_message,
+                "error_code": error_code,
+                "details": f"처리 시간: {int((time.time() - start_time) * 1000)}ms",
             },
         )
