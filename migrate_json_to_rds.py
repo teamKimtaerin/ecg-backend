@@ -87,13 +87,13 @@ def migrate_json_to_rds():
                 if asset_data.get("createdAt"):
                     try:
                         db_data["created_at"] = parser.parse(asset_data["createdAt"])
-                    except:
+                    except (ValueError, TypeError):
                         db_data["created_at"] = datetime.utcnow()
 
                 if asset_data.get("updatedAt"):
                     try:
                         db_data["updated_at"] = parser.parse(asset_data["updatedAt"])
-                    except:
+                    except (ValueError, TypeError):
                         db_data["updated_at"] = datetime.utcnow()
 
                 # Create PluginAsset instance
