@@ -66,9 +66,9 @@ class ChatBotRequest(BaseModel):
                                         "id": "word-1",
                                         "text": "안녕하세요",
                                         "baseTime": [0.0, 1.5],
-                                        "style": {"color": "#ffffff"}
+                                        "style": {"color": "#ffffff"},
                                     }
-                                ]
+                                ],
                             }
                         }
                     ]
@@ -90,10 +90,12 @@ class ChatBotResponse(BaseModel):
     processing_time_ms: Optional[int] = Field(default=None, description="처리 시간 (밀리초)")
     saved_files: Optional[SavedFiles] = Field(default=None, description="저장된 파일 정보")
     save_error: Optional[str] = Field(default=None, description="파일 저장 중 발생한 오류")
-    
+
     # 시나리오 편집 관련 필드
     edit_result: Optional[Dict[str, Any]] = Field(default=None, description="편집 결과 정보")
-    json_patches: Optional[List[Dict[str, Any]]] = Field(default=None, description="JSON patch 배열")
+    json_patches: Optional[List[Dict[str, Any]]] = Field(
+        default=None, description="JSON patch 배열"
+    )
     has_scenario_edits: Optional[bool] = Field(default=False, description="시나리오 편집 여부")
 
     class Config:

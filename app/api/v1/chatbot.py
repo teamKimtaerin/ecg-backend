@@ -145,11 +145,11 @@ async def send_chatbot_message(request: ChatBotRequest) -> ChatBotResponse:
 
         if "save_error" in result:
             response_data["save_error"] = result["save_error"]
-            
+
         # 시나리오 편집 정보 추가
         if "edit_result" in result:
             response_data["edit_result"] = result["edit_result"]
-        
+
         if "json_patches" in result:
             response_data["json_patches"] = result["json_patches"]
             response_data["has_scenario_edits"] = bool(result["json_patches"])
@@ -356,11 +356,11 @@ async def send_langchain_chatbot_message(request: ChatBotRequest) -> ChatBotResp
 
         if "save_error" in result:
             response_data["save_error"] = result["save_error"]
-            
+
         # 시나리오 편집 정보 추가
         if "edit_result" in result:
             response_data["edit_result"] = result["edit_result"]
-        
+
         if "json_patches" in result:
             response_data["json_patches"] = result["json_patches"]
             response_data["has_scenario_edits"] = bool(result["json_patches"])
