@@ -3,7 +3,6 @@
 LangChain Bedrock 통합 테스트 스크립트
 """
 
-import asyncio
 import os
 import sys
 from pathlib import Path
@@ -157,7 +156,7 @@ def test_comparison():
         print(
             f"   🔗 LangChain response preview: {results['langchain']['completion'][:100]}..."
         )
-        print(f"   ⚡ LangChain features: Memory ✅, Templates ✅, Chains ✅")
+        print("   ⚡ LangChain features: Memory ✅, Templates ✅, Chains ✅")
 
     return results
 

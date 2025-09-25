@@ -52,7 +52,7 @@ def test_langchain_components():
 
         # Test prompt template creation
         system_template = "You are a helpful AI assistant for ECG caption editing tool."
-        prompt_template = ChatPromptTemplate.from_messages(
+        ChatPromptTemplate.from_messages(
             [
                 SystemMessagePromptTemplate.from_template(system_template),
                 HumanMessagePromptTemplate.from_template("{input}"),
@@ -61,12 +61,12 @@ def test_langchain_components():
         print("✅ Prompt template created successfully")
 
         # Test output parser
-        parser = StrOutputParser()
+        StrOutputParser()
         print("✅ Output parser initialized successfully")
 
         # Test message creation
-        human_msg = HumanMessage(content="Hello")
-        ai_msg = AIMessage(content="Hi there!")
+        HumanMessage(content="Hello")
+        AIMessage(content="Hi there!")
         print("✅ Message objects created successfully")
 
         return True
@@ -96,8 +96,11 @@ def test_chain_construction():
 
         parser = StrOutputParser()
 
+
+        StrOutputParser()
+
         # Test chain construction (without actual LLM)
-        mock_chain = prompt | RunnableLambda(mock_llm) | RunnableLambda(lambda x: x)
+        prompt | RunnableLambda(mock_llm) | RunnableLambda(lambda x: x)
         print("✅ Chain construction successful (without LLM)")
 
         return True

@@ -69,7 +69,7 @@ def test_animation_requests():
         print(f"\n  {i}. {case['description']}")
         print(f"     메시지: '{case['message']}'")
         print(f"     예상 분류: {case['expected']}")
-        print(f"     ✅ 테스트 케이스 준비됨")
+        print("     ✅ 테스트 케이스 준비됨")
 
     print(f"\n📊 총 {len(test_cases)}개의 테스트 케이스가 준비되었습니다.")
     print(

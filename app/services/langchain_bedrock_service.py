@@ -1,10 +1,8 @@
-import json
 import logging
 from typing import Dict, Any, List, Optional
-from datetime import datetime
 
 from langchain_aws import ChatBedrock
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.prompts import (
     ChatPromptTemplate,
     SystemMessagePromptTemplate,
@@ -552,7 +550,7 @@ ECG 주요 기능:
                 save_response=False,
             )
 
-            logger.info(f"Step 1 completed: Message classification")
+            logger.info("Step 1 completed: Message classification")
 
             # 분류 결과 파싱 시도
             try:
@@ -664,7 +662,7 @@ JSON patch 형태로 수정사항을 제공해주세요. 기존 구조를 유지
 1. **rotation** - 3D 회전 효과
    - 파라미터: rotationDegrees(90-720°), animationDuration(0.5-3s), axisX/Y/Z(boolean), perspective(200-1500px), staggerDelay(0-0.3s)
 
-2. **fadein** - 페이드 인 효과  
+2. **fadein** - 페이드 인 효과
    - 파라미터: staggerDelay(0.02-0.5s), animationDuration(0.2-2s), startOpacity(0-0.5), scaleStart(0.5-1), ease(power1-3.out/back.out/elastic.out)
 
 3. **typewriter** - 타이핑 효과
