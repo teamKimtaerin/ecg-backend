@@ -146,7 +146,6 @@ async def send_chatbot_message(request: ChatBotRequest) -> ChatBotResponse:
             "processing_time_ms": processing_time_ms,
         }
 
-
         # 시나리오 편집 정보 추가
         if "edit_result" in result:
             response_data["edit_result"] = result["edit_result"]
@@ -228,7 +227,6 @@ async def chatbot_health_check() -> Dict[str, Any]:
         }
 
 
-
 @router.post(
     "/langchain",
     response_model=ChatBotResponse,
@@ -289,7 +287,6 @@ async def send_langchain_chatbot_message(request: ChatBotRequest) -> ChatBotResp
             "usage": result.get("usage"),
             "processing_time_ms": processing_time_ms,
         }
-
 
         # 시나리오 편집 정보 추가
         if "edit_result" in result:

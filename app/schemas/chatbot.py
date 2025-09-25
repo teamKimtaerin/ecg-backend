@@ -12,7 +12,6 @@ class ChatMessage(BaseModel):
     timestamp: datetime = Field(..., description="메시지 생성 시간")
 
 
-
 class ChatBotRequest(BaseModel):
     """ChatBot API 요청 스키마"""
 
@@ -110,8 +109,6 @@ class ChatBotResponse(BaseModel):
                 "has_scenario_edits": True,
             }
         }
-
-
 
 
 class ChatBotErrorResponse(BaseModel):
