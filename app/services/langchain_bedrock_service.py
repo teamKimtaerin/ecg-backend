@@ -67,12 +67,12 @@ class LangChainBedrockService:
 </processing_steps>
 
 <common_patterns>
-- text_change: {"op": "replace", "path": "/cues/0/root/text", "value": "새 텍스트"}
-- time_adjustment: {"op": "replace", "path": "/cues/0/displayTime", "value": [0, 10]}
-- plugin_add: {"op": "add", "path": "/cues/0/root/pluginChain/-", "value": {"pluginId": "fadein", "timeOffset": ["0%", "100%"], "params": {"animationDuration": 1.0}}}
-- plugin_param_edit: {"op": "replace", "path": "/cues/0/root/pluginChain/1/params/typingSpeed", "value": 0.1}
-- style_edit: {"op": "replace", "path": "/cues/0/root/style/color", "value": "#ff0000"}
-- word_plugin_add: {"op": "add", "path": "/cues/0/root/children/0/pluginChain/-", "value": {"pluginId": "glow", "params": {"color": "#00ffff", "intensity": 0.8}}}
+- text_change: {{"op": "replace", "path": "/cues/0/root/text", "value": "새 텍스트"}}
+- time_adjustment: {{"op": "replace", "path": "/cues/0/displayTime", "value": [0, 10]}}
+- plugin_add: {{"op": "add", "path": "/cues/0/root/pluginChain/-", "value": {{"pluginId": "fadein", "timeOffset": ["0%", "100%"], "params": {{"animationDuration": 1.0}}}}}}
+- plugin_param_edit: {{"op": "replace", "path": "/cues/0/root/pluginChain/1/params/typingSpeed", "value": 0.1}}
+- style_edit: {{"op": "replace", "path": "/cues/0/root/style/color", "value": "#ff0000"}}
+- word_plugin_add: {{"op": "add", "path": "/cues/0/root/children/0/pluginChain/-", "value": {{"pluginId": "glow", "params": {{"color": "#00ffff", "intensity": 0.8}}}}}}
 </common_patterns>
 
 <output_format>
@@ -80,7 +80,7 @@ class LangChainBedrockService:
 <json_patch_chunk index="1" total="N" ops="K">
 <![CDATA[
 [
-  {"op": "replace", "path": "/cues/0/root/text", "value": "새 텍스트"}
+  {{"op": "replace", "path": "/cues/0/root/text", "value": "새 텍스트"}}
 ]
 ]]>
 </json_patch_chunk>
@@ -1315,7 +1315,7 @@ ECG 주요 기능:
 
             # 데모 응답 반환
             return {
-                "completion": f"🎭 데모 모드 실행 완료! 총 {total_words_processed}개의 단어에 cwi-loud (펄스+진동) + glow (글로우) 애니메이션과 화난 느낌의 붉은 그라데이션을 적용했습니다. 강렬하고 역동적인 효과로 시청자의 시선을 사로잡을 것입니다!",
+                "completion": f"총 {total_words_processed}개의 단어에 cwi-loud (펄스+진동) + glow (글로우) 애니메이션과 화난 느낌의 붉은 그라데이션을 적용했습니다. 강렬하고 역동적인 효과로 시청자의 시선을 사로잡을 것입니다!",
                 "stop_reason": "end_turn",
                 "usage": {"input_tokens": len(prompt.split()), "output_tokens": 50},
                 "model_id": self.llm.model_id,
@@ -1323,7 +1323,7 @@ ECG 주요 기능:
                 "edit_result": {
                     "type": "style_edit",
                     "success": True,
-                    "explanation": f"데모 모드로 {total_words_processed}개 단어에 Loud 애니메이션과 붉은 그라데이션 효과를 일괄 적용했습니다.",
+                    "explanation": f" {total_words_processed}개 단어에 Loud 애니메이션과 붉은 그라데이션 효과를 일괄 적용했습니다.",
                 },
                 "json_patches": patches,
                 "has_scenario_edits": True,
