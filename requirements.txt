@@ -66,3 +66,9 @@ psutil==5.9.6
 
 # HTTP requests for GPU server communication
 requests==2.31.0
+
+# LangChain for advanced AI workflows
+langchain==0.1.0
+langchain-aws==0.1.0
+langchain-core==0.1.0
+langchain-community==0.0.13
