@@ -672,7 +672,7 @@ class LangChainBedrockService:
 
 분류 기준:
 1. "simple_info" - 단순한 정보 요청
-2. "simple_edit" - 간단한 자막 수정 (오탈자, 번역 등)
+2. "simple_edit" - 간단한 자막 수정 (오탈자, 단어 변경 등)
 3. "animation_request" - 자막 애니메이션 수정/추가 요청
 
 응답 형식:
@@ -982,7 +982,7 @@ JSON patch 형태로 수정사항을 제공해주세요. 기존 구조를 유지
 사용자 요청: "{user_message}"
 
 분류 기준:
-- "text_edit": 자막 텍스트 수정 (오탈자, 번역, 단어 변경)
+- "text_edit": 자막 텍스트 수정 (오탈자, 단어 변경)
 - "style_edit": 자막 스타일 수정 (색상, 크기, 위치)
 - "animation_request": 애니메이션 효과 추가/수정
 - "info_request": 단순 정보 질문
