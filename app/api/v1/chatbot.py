@@ -18,55 +18,49 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/chatbot", tags=["ChatBot"])
 
 
-def build_context_prompt(request: ChatBotRequest) -> str:
+def build_xml_request(request: ChatBotRequest) -> str:
     """
-    ChatBot 요청을 기반으로 컨텍스트 프롬프트 구성
+    ChatBot 요청을 통일된 XML 구조로 변환
 
     Args:
         request: ChatBot 요청 객체
 
     Returns:
-        str: 완성된 프롬프트
+        str: XML 구조의 Claude 요청
     """
-    system_prompt = """당신은 HOIT 자막 편집 도구의 AI 어시스턴트 "둘리"입니다.
+    import json
 
-주요 역할:
-1. 자막 편집 관련 질문에 친절하고 정확하게 답변
-2. HOIT 도구의 기능 사용법 안내
-3. 자막 작업 효율성 개선 팁 제공
-4. 기술적 문제 해결 도움
+    # 사용자 지시사항 구성
+    user_instruction = request.prompt
 
-답변 스타일:
-- 친근하고 도움이 되는 톤
-- 간결하면서도 충분한 정보 제공
-- 단계별 설명이 필요한 경우 명확한 순서로 안내
-- 한국어로 자연스럽게 대화
-
-HOIT 주요 기능:
-- 자동 자막 생성 (AI 음성 인식)
-- 실시간 자막 편집
-- 다양한 애니메이션 효과
-- 화자 분리 및 관리
-- GPU 가속 렌더링
-- 드래그 앤 드롭 편집"""
-
-    # 대화 히스토리 구성
-    conversation_context = ""
+    # 대화 히스토리가 있는 경우 컨텍스트 추가
     if request.conversation_history and len(request.conversation_history) > 0:
-        # 최근 6개 메시지만 포함 (토큰 절약)
         recent_messages = request.conversation_history[-6:]
-        conversation_context = "\n\n".join(
+        conversation_context = "\n".join(
             [
                 f"{'Human' if msg.sender == 'user' else 'Assistant'}: {msg.content}"
                 for msg in recent_messages
             ]
         )
-        conversation_context += "\n\n"
+        user_instruction = (
+            f"대화 히스토리:\n{conversation_context}\n\n현재 요청: {request.prompt}"
+        )
 
-    # 전체 프롬프트 구성
-    full_prompt = f"{system_prompt}\n\n{conversation_context}Human: {request.prompt}"
+    # 현재 JSON 데이터 (시나리오가 있는 경우)
+    current_json = ""
+    if request.scenario_data:
+        current_json = json.dumps(request.scenario_data, indent=2, ensure_ascii=False)
+    else:
+        current_json = "{}"
 
-    return full_prompt
+    # XML 구조로 변환
+    xml_request = f"""<user_instruction>{user_instruction}</user_instruction>
+
+<current_json>
+{current_json}
+</current_json>"""
+
+    return xml_request
 
 
 @router.post(
@@ -102,14 +96,14 @@ async def send_chatbot_message(request: ChatBotRequest) -> ChatBotResponse:
         max_tokens = 2000  # 프론트엔드 값 무시하고 고정값 사용
         temperature = 0.7  # 프론트엔드 값 무시하고 고정값 사용
 
-        # 기본값을 항상 LangChain으로 변경
+        # XML 구조로 변환된 요청 생성
+        xml_request = build_xml_request(request)
+
         logger.info(
-            f"Using LangChain service (default) with backend-set values: max_tokens={max_tokens}, temperature={temperature}"
+            f"Using LangChain service with XML request structure: max_tokens={max_tokens}, temperature={temperature}"
         )
-        result = langchain_bedrock_service.invoke_claude_with_chain(
-            prompt=request.prompt,
-            conversation_history=request.conversation_history,
-            scenario_data=request.scenario_data,
+        result = langchain_bedrock_service.invoke_claude_with_xml_request(
+            xml_request=xml_request,
             max_tokens=max_tokens,
             temperature=temperature,
         )
@@ -130,12 +124,11 @@ async def send_chatbot_message(request: ChatBotRequest) -> ChatBotResponse:
         }
 
         # 시나리오 편집 정보 추가
-        if "edit_result" in result:
-            response_data["edit_result"] = result["edit_result"]
-
         if "json_patches" in result:
             response_data["json_patches"] = result["json_patches"]
             response_data["has_scenario_edits"] = bool(result["json_patches"])
+        else:
+            response_data["has_scenario_edits"] = False
 
         return ChatBotResponse(**response_data)
 

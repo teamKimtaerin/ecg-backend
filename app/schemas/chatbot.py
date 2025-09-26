@@ -23,12 +23,14 @@ class ChatBotRequest(BaseModel):
         default=None, description="현재 시나리오 파일 (자막 및 스타일링 데이터)"
     )
     max_tokens: Optional[int] = Field(
-        default=1000, description="최대 토큰 수 (백엔드에서 1000으로 고정 설정됨)", ge=1, le=4000
+        default=2000, description="최대 토큰 수 (백엔드에서 2000으로 고정 설정됨)", ge=1, le=4000
     )
     temperature: Optional[float] = Field(
         default=0.7, description="온도 (백엔드에서 0.7로 고정 설정됨)", ge=0.0, le=1.0
     )
-    use_langchain: Optional[bool] = Field(default=True, description="LangChain 사용 여부")
+    use_langchain: Optional[bool] = Field(
+        default=True, description="LangChain 사용 여부 (항상 True로 처리됨)"
+    )
 
     class Config:
         json_schema_extra = {
@@ -65,7 +67,7 @@ class ChatBotRequest(BaseModel):
                         }
                     ]
                 },
-                "max_tokens": 1000,
+                "max_tokens": 2000,
                 "temperature": 0.7,
                 "use_langchain": True,
             }
@@ -75,15 +77,17 @@ class ChatBotRequest(BaseModel):
 class ChatBotResponse(BaseModel):
     """ChatBot API 응답 스키마"""
 
-    completion: str = Field(..., description="AI 응답 텍스트")
+    completion: str = Field(
+        ...,
+        description="Claude XML 응답 (<summary>, <json_patch_chunk>, <apply_order> 구조)",
+    )
     stop_reason: str = Field(..., description="응답 종료 이유")
     usage: Optional[Dict[str, Any]] = Field(default=None, description="토큰 사용량 정보")
     processing_time_ms: Optional[int] = Field(default=None, description="처리 시간 (밀리초)")
 
     # 시나리오 편집 관련 필드
-    edit_result: Optional[Dict[str, Any]] = Field(default=None, description="편집 결과 정보")
     json_patches: Optional[List[Dict[str, Any]]] = Field(
-        default=None, description="JSON patch 배열"
+        default=None, description="파싱된 RFC6902 JSON Patch 배열 (시나리오 편집용)"
     )
     has_scenario_edits: Optional[bool] = Field(default=False, description="시나리오 편집 여부")
 
@@ -94,11 +98,6 @@ class ChatBotResponse(BaseModel):
                 "stop_reason": "end_turn",
                 "usage": {"input_tokens": 120, "output_tokens": 280},
                 "processing_time_ms": 2100,
-                "edit_result": {
-                    "type": "motion_text_edit",
-                    "success": True,
-                    "explanation": "자막 색상을 빨간색으로 성공적으로 변경했습니다.",
-                },
                 "json_patches": [
                     {
                         "op": "replace",

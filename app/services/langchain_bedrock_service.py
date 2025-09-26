@@ -583,6 +583,65 @@ class LangChainBedrockService:
             logger.error(f"Conditional chain failed: {e}")
             raise Exception(f"조건부 체인 실행 실패: {str(e)}")
 
+    def invoke_claude_with_xml_request(
+        self,
+        xml_request: str,
+        max_tokens: int = 2000,
+        temperature: float = 0.7,
+    ) -> Dict[str, Any]:
+        """
+        통합된 XML 구조를 사용하여 Claude를 호출하고 응답을 파싱합니다.
+
+        Args:
+            xml_request: XML 형식의 요청 (<user_instruction> + <current_json>)
+            max_tokens: 최대 토큰 수
+            temperature: 창의성 조절
+
+        Returns:
+            Dict: 파싱된 응답 (completion, json_patches, has_scenario_edits 등)
+        """
+        try:
+            logger.info("🚀 Processing unified XML request")
+
+            # Claude 호출
+            result = self.invoke_claude_with_chain(
+                prompt=xml_request,
+                max_tokens=max_tokens,
+                temperature=temperature,
+            )
+
+            # XML 응답 파싱
+            motion_result = self._parse_motion_text_editor_response(
+                result["completion"]
+            )
+
+            if motion_result["success"] and "patches" in motion_result:
+                # 성공적으로 파싱된 경우
+                return {
+                    "completion": result["completion"],
+                    "stop_reason": result["stop_reason"],
+                    "usage": result.get("usage"),
+                    "model_id": result.get("model_id"),
+                    "langchain_used": True,
+                    "json_patches": motion_result["patches"],
+                    "has_scenario_edits": bool(motion_result["patches"]),
+                }
+            else:
+                # 파싱 실패 또는 일반 대화인 경우
+                return {
+                    "completion": result["completion"],
+                    "stop_reason": result["stop_reason"],
+                    "usage": result.get("usage"),
+                    "model_id": result.get("model_id"),
+                    "langchain_used": True,
+                    "json_patches": [],
+                    "has_scenario_edits": False,
+                }
+
+        except Exception as e:
+            logger.error(f"XML request processing failed: {e}")
+            raise Exception(f"XML 요청 처리 실패: {str(e)}")
+
     def create_subtitle_animation_chain(
         self,
         user_message: str,
@@ -1038,8 +1097,6 @@ JSON 형태로 응답:
             except json.JSONDecodeError:
                 return {
                     "type": "text_edit",
-                    "patches": [],
-                    "explanation": result["completion"],
                     "success": False,
                     "error": "JSON 파싱 실패",
                     "langchain_used": True,
@@ -1098,8 +1155,6 @@ JSON 형태로 응답:
             except json.JSONDecodeError:
                 return {
                     "type": "style_edit",
-                    "patches": [],
-                    "explanation": result["completion"],
                     "success": False,
                     "error": "JSON 파싱 실패",
                     "langchain_used": True,
@@ -1178,8 +1233,6 @@ JSON 형태로 응답:
             except json.JSONDecodeError:
                 return {
                     "type": "animation_request",
-                    "patches": [],
-                    "explanation": result["completion"],
                     "success": False,
                     "error": "JSON 파싱 실패",
                     "langchain_used": True,
@@ -1219,9 +1272,8 @@ ECG 주요 기능:
 
             return {
                 "type": "info_request",
-                "patches": [],
-                "explanation": result["completion"],
                 "success": True,
+                "response": result["completion"],
                 "langchain_used": True,
             }
 
@@ -1277,9 +1329,7 @@ ECG 주요 기능:
                     "edit_result": {
                         "type": "motion_text_edit",
                         "success": False,
-                        "explanation": "시나리오 데이터가 없어 데모를 실행할 수 없습니다.",
                         "error": "No scenario data",
-                        "patches": [],
                     },
                     "json_patches": [],
                     "has_scenario_edits": False,
@@ -1432,7 +1482,6 @@ ECG 주요 기능:
                 "edit_result": {
                     "type": "style_edit",
                     "success": True,
-                    "explanation": f"{total_words_processed}개 단어에 Loud 애니메이션과 붉은 그라데이션 효과를 일괄 적용했습니다.",
                 },
                 "json_patches": patches,
                 "has_scenario_edits": True,
@@ -1463,9 +1512,7 @@ ECG 주요 기능:
                 "edit_result": {
                     "type": "motion_text_edit",
                     "success": False,
-                    "explanation": f"데모 모드 실행 실패: {str(e)}",
                     "error": str(e),
-                    "patches": [],
                 },
                 "json_patches": [],
                 "has_scenario_edits": False,
@@ -1533,12 +1580,11 @@ ECG 주요 기능:
 
             return {
                 "type": "motion_text_edit",
-                "patches": all_patches,
-                "summary": summary,
+                "summary": summary or "MotionTextEditor 표준 응답 처리 완료",
                 "apply_order": apply_order,
                 "success": len(all_patches) > 0,
-                "explanation": summary or "MotionTextEditor 표준 응답 처리 완료",
                 "langchain_used": True,
+                "patches": all_patches,  # 내부 처리용으로만 사용
             }
 
         except Exception as e:
@@ -1559,11 +1605,9 @@ ECG 주요 기능:
 
             return {
                 "type": "motion_text_edit",
-                "patches": [],
                 "summary": "",
                 "success": False,
                 "error": f"응답 파싱 실패: {str(e)}",
-                "explanation": "MotionTextEditor 응답 형식 파싱에 실패했습니다.",
                 "langchain_used": True,
             }
 
