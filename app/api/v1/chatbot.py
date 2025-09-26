@@ -102,34 +102,17 @@ async def send_chatbot_message(request: ChatBotRequest) -> ChatBotResponse:
         max_tokens = 2000  # 프론트엔드 값 무시하고 고정값 사용
         temperature = 0.7  # 프론트엔드 값 무시하고 고정값 사용
 
-        # 시나리오 데이터가 있거나 LangChain이 요청된 경우 LangChain 사용
-        if request.use_langchain or request.scenario_data is not None:
-            # LangChain을 통한 호출 (시나리오 데이터 포함)
-            logger.info(
-                f"Using LangChain service with backend-set values: max_tokens={max_tokens}, temperature={temperature}"
-            )
-            result = langchain_bedrock_service.invoke_claude_with_chain(
-                prompt=request.prompt,
-                conversation_history=request.conversation_history,
-                scenario_data=request.scenario_data,
-                max_tokens=max_tokens,
-                temperature=temperature,
-            )
-        else:
-            # 기존 직접 API 호출 방식 (시나리오 데이터 없는 경우만)
-            logger.info(
-                f"Using basic Bedrock service with backend-set values: max_tokens={max_tokens}, temperature={temperature}"
-            )
-            # 프롬프트 구성
-            full_prompt = build_context_prompt(request)
-            logger.debug(f"Full prompt preview: {full_prompt[:200]}...")
-
-            # Bedrock 서비스 호출
-            result = bedrock_service.invoke_claude(
-                prompt=full_prompt,
-                max_tokens=max_tokens,
-                temperature=temperature,
-            )
+        # 기본값을 항상 LangChain으로 변경
+        logger.info(
+            f"Using LangChain service (default) with backend-set values: max_tokens={max_tokens}, temperature={temperature}"
+        )
+        result = langchain_bedrock_service.invoke_claude_with_chain(
+            prompt=request.prompt,
+            conversation_history=request.conversation_history,
+            scenario_data=request.scenario_data,
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
 
         # 처리 시간 계산
         processing_time_ms = int((time.time() - start_time) * 1000)
@@ -225,107 +208,3 @@ async def chatbot_health_check() -> Dict[str, Any]:
             "timestamp": time.time(),
             "service": "ECG ChatBot API",
         }
-
-
-@router.post(
-    "/langchain",
-    response_model=ChatBotResponse,
-    responses={
-        400: {"model": ChatBotErrorResponse, "description": "잘못된 요청"},
-        500: {"model": ChatBotErrorResponse, "description": "서버 내부 오류"},
-        503: {"model": ChatBotErrorResponse, "description": "외부 서비스 이용 불가"},
-    },
-    summary="LangChain ChatBot 메시지 전송",
-    description="LangChain을 사용하여 ECG ChatBot과 대화하는 전용 엔드포인트입니다. 고급 기능(메모리, 체인)을 제공합니다.",
-)
-async def send_langchain_chatbot_message(request: ChatBotRequest) -> ChatBotResponse:
-    """
-    LangChain을 사용하여 ChatBot에게 메시지를 전송합니다.
-
-    이 엔드포인트는 항상 LangChain을 사용하며 다음 고급 기능을 제공합니다:
-    - 대화 메모리 관리
-    - 프롬프트 템플릿
-    - 체인 기반 처리
-    - MotionTextEditor 표준 준수
-
-    참고: max_tokens(2000)와 temperature(0.7)는 백엔드에서 고정값으로 설정됩니다.
-    """
-    start_time = time.time()
-
-    try:
-        logger.info(
-            f"LangChain ChatBot request received: prompt length={len(request.prompt)}"
-        )
-
-        # 백엔드에서 토큰 수와 온도 설정
-        max_tokens = 2000  # 프론트엔드 값 무시하고 고정값 사용
-        temperature = 0.7  # 프론트엔드 값 무시하고 고정값 사용
-
-        # LangChain을 통한 호출 (강제, 시나리오 데이터 포함)
-        logger.info(
-            f"LangChain endpoint with backend-set values: max_tokens={max_tokens}, temperature={temperature}"
-        )
-        result = langchain_bedrock_service.invoke_claude_with_chain(
-            prompt=request.prompt,
-            conversation_history=request.conversation_history,
-            scenario_data=request.scenario_data,
-            max_tokens=max_tokens,
-            temperature=temperature,
-        )
-
-        # 처리 시간 계산
-        processing_time_ms = int((time.time() - start_time) * 1000)
-
-        logger.info(
-            f"LangChain ChatBot response generated successfully in {processing_time_ms}ms"
-        )
-
-        # 응답 구성
-        response_data = {
-            "completion": result["completion"],
-            "stop_reason": result["stop_reason"],
-            "usage": result.get("usage"),
-            "processing_time_ms": processing_time_ms,
-        }
-
-        # 시나리오 편집 정보 추가
-        if "edit_result" in result:
-            response_data["edit_result"] = result["edit_result"]
-
-        if "json_patches" in result:
-            response_data["json_patches"] = result["json_patches"]
-            response_data["has_scenario_edits"] = bool(result["json_patches"])
-
-        return ChatBotResponse(**response_data)
-
-    except ValueError as e:
-        logger.error(f"LangChain validation error: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={
-                "error": "요청 형식이 올바르지 않습니다",
-                "error_code": "VALIDATION_ERROR",
-                "details": str(e),
-            },
-        )
-
-    except Exception as e:
-        logger.error(f"LangChain ChatBot API error: {e}")
-
-        # LangChain 관련 에러인지 확인
-        error_message = str(e)
-        if "langchain" in error_message.lower() or "bedrock" in error_message.lower():
-            status_code = status.HTTP_503_SERVICE_UNAVAILABLE
-            error_code = "LANGCHAIN_API_ERROR"
-        else:
-            status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
-            error_code = "INTERNAL_SERVER_ERROR"
-
-        raise HTTPException(
-            status_code=status_code,
-            detail={
-                "error": error_message,
-                "error_code": error_code,
-                "details": f"처리 시간: {int((time.time() - start_time) * 1000)}ms",
-            },
-        )
