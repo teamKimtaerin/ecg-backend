@@ -1326,37 +1326,45 @@ ECG 주요 기능:
 
             cleaned_scenario = copy.deepcopy(scenario_data)
             clear_patches = []
-            
+
             logger.info("🧹 Clearing existing plugin chains from scenario data")
-            
+
             # 모든 cue와 children에서 pluginChain 제거
             for cue_index, cue in enumerate(cleaned_scenario.get("cues", [])):
                 if "root" in cue:
                     root = cue["root"]
-                    
+
                     # root의 pluginChain 제거
                     if "pluginChain" in root:
-                        clear_patches.append({
-                            "op": "remove",
-                            "path": f"/cues/{cue_index}/root/pluginChain"
-                        })
+                        clear_patches.append(
+                            {
+                                "op": "remove",
+                                "path": f"/cues/{cue_index}/root/pluginChain",
+                            }
+                        )
                         del root["pluginChain"]
-                    
+
                     # children의 pluginChain 제거
                     if "children" in root and isinstance(root["children"], list):
                         for child_index, child in enumerate(root["children"]):
                             if isinstance(child, dict) and "pluginChain" in child:
-                                clear_patches.append({
-                                    "op": "remove", 
-                                    "path": f"/cues/{cue_index}/root/children/{child_index}/pluginChain"
-                                })
+                                clear_patches.append(
+                                    {
+                                        "op": "remove",
+                                        "path": f"/cues/{cue_index}/root/children/{child_index}/pluginChain",
+                                    }
+                                )
                                 del child["pluginChain"]
-            
-            logger.info(f"🧹 Generated {len(clear_patches)} clear patches for existing plugin chains")
+
+            logger.info(
+                f"🧹 Generated {len(clear_patches)} clear patches for existing plugin chains"
+            )
 
             # Step 2: Claude에게 plugin 추가 요청
-            cleaned_scenario_json = json.dumps(cleaned_scenario, indent=2, ensure_ascii=False)
-            
+            cleaned_scenario_json = json.dumps(
+                cleaned_scenario, indent=2, ensure_ascii=False
+            )
+
             demo_prompt = f"""<user_instruction>데모 모드: 모든 단어와 텍스트에 화난 감정을 표현하는 강렬한 애니메이션 효과를 추가해주세요. cwi-loud@2.0.0 애니메이션과 붉은 색상 계열의 glow 효과를 적용하여 역동적이고 눈에 띄는 효과를 만들어주세요.</user_instruction>
 
 <current_json>
@@ -1366,7 +1374,7 @@ ECG 주요 기능:
 위의 MotionText v2.0 JSON에 강렬한 애니메이션 효과를 추가하세요. RFC6902 JSON Patch 표준을 준수하여 출력하세요."""
 
             logger.info("🤖 Requesting Claude to add plugin chains for demo mode")
-            
+
             result = self.invoke_claude_with_chain(
                 prompt=demo_prompt,
                 max_tokens=2000,
@@ -1377,17 +1385,25 @@ ECG 주요 기능:
             motion_result = self._parse_motion_text_editor_response(
                 result["completion"]
             )
-            
+
             if motion_result["success"] and "patches" in motion_result:
                 # 기존 clear_patches와 Claude의 patches 합치기
                 all_patches = clear_patches + motion_result["patches"]
-                
-                logger.info(f"✅ Demo completed: {len(clear_patches)} clear + {len(motion_result['patches'])} Claude patches")
-                
+
+                logger.info(
+                    f"✅ Demo completed: {len(clear_patches)} clear + {len(motion_result['patches'])} Claude patches"
+                )
+
                 return {
                     "completion": result["completion"],
                     "stop_reason": result["stop_reason"],
-                    "usage": result.get("usage", {"input_tokens": len(demo_prompt.split()), "output_tokens": 100}),
+                    "usage": result.get(
+                        "usage",
+                        {
+                            "input_tokens": len(demo_prompt.split()),
+                            "output_tokens": 100,
+                        },
+                    ),
                     "model_id": result.get("model_id", self.llm.model_id),
                     "langchain_used": True,
                     "json_patches": all_patches,
@@ -1398,8 +1414,11 @@ ECG 주요 기능:
                 logger.warning("⚠️ Claude failed to generate demo patches")
                 return {
                     "completion": "데모 모드 실행 중 오류가 발생했습니다.",
-                    "stop_reason": "end_turn", 
-                    "usage": {"input_tokens": len(demo_prompt.split()), "output_tokens": 20},
+                    "stop_reason": "end_turn",
+                    "usage": {
+                        "input_tokens": len(demo_prompt.split()),
+                        "output_tokens": 20,
+                    },
                     "model_id": self.llm.model_id,
                     "langchain_used": True,
                     "json_patches": clear_patches,  # 최소한 기존 것은 제거
