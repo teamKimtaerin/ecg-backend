@@ -69,10 +69,10 @@ class LangChainBedrockService:
 <common_patterns>
 - text_change: {{"op": "replace", "path": "/cues/0/root/text", "value": "새 텍스트"}}
 - time_adjustment: {{"op": "replace", "path": "/cues/0/displayTime", "value": [0, 10]}}
-- plugin_add: {{"op": "add", "path": "/cues/0/root/pluginChain/-", "value": {{"pluginId": "fadein", "timeOffset": ["0%", "100%"], "params": {{"animationDuration": 1.0}}}}}}
+- plugin_add: {{"op": "add", "path": "/cues/0/root/pluginChain/-", "value": {{"pluginId": "fadein@2.0.0", "timeOffset": ["0%", "100%"], "params": {{"animationDuration": 1.0}}}}}}
 - plugin_param_edit: {{"op": "replace", "path": "/cues/0/root/pluginChain/1/params/typingSpeed", "value": 0.1}}
 - style_edit: {{"op": "replace", "path": "/cues/0/root/style/color", "value": "#ff0000"}}
-- word_plugin_add: {{"op": "add", "path": "/cues/0/root/children/0/pluginChain/-", "value": {{"pluginId": "glow", "params": {{"color": "#00ffff", "intensity": 0.8}}}}}}
+- word_plugin_add: {{"op": "add", "path": "/cues/0/root/children/0/pluginChain/-", "value": {{"pluginId": "glow@2.0.0", "params": {{"color": "#00ffff", "intensity": 0.8}}}}}}
 </common_patterns>
 
 <output_format>
@@ -775,34 +775,34 @@ JSON patch 형태로 수정사항을 제공해주세요. 기존 구조를 유지
 
 사용 가능한 애니메이션 카테고리 (실제 manifest 기반):
 
-1. **rotation** - 3D 회전 효과
+1. **rotation@2.0.0** - 3D 회전 효과
    - 파라미터: rotationDegrees(90-720°), animationDuration(0.5-3s), axisX/Y/Z(boolean), perspective(200-1500px), staggerDelay(0-0.3s)
 
-2. **fadein** - 페이드 인 효과
+2. **fadein@2.0.0** - 페이드 인 효과
    - 파라미터: staggerDelay(0.02-0.5s), animationDuration(0.2-2s), startOpacity(0-0.5), scaleStart(0.5-1), ease(power1-3.out/back.out/elastic.out)
 
-3. **typewriter** - 타이핑 효과
+3. **typewriter@2.0.0** - 타이핑 효과
    - 파라미터: typingSpeed(0.02-0.2s), cursorBlink(boolean), cursorChar(string), showCursor(boolean), soundEffect(boolean)
 
-4. **glow** - 글로우 효과
+4. **glow@2.0.0** - 글로우 효과
    - 파라미터: color(#hex), intensity(0-1), pulse(boolean), cycles(1-120)
 
-5. **scalepop** - 스케일 팝 효과
+5. **scalepop@2.0.0** - 스케일 팝 효과
    - 파라미터: popScale(1.1-3), animationDuration(0.5-2.5s), staggerDelay(0-0.3s), bounceStrength(0.1-2), colorPop(boolean)
 
-6. **slideup** - 슬라이드 업 효과
+6. **slideup@2.0.0** - 슬라이드 업 효과
    - 파라미터: slideDistance(10-100px), animationDuration(0.3-2s), staggerDelay(0-0.5s), easeType(power2.out/back.out/elastic.out/bounce.out), blurEffect(boolean)
 
-7. **elastic** - 탄성 효과
+7. **elastic@2.0.0** - 탄성 효과
    - 파라미터: bounceStrength(0.1-2), animationDuration(0.5-4s), staggerDelay(0-0.5s), startScale(0-1), overshoot(1-2)
 
-8. **glitch** - 글리치 효과
+8. **glitch@2.0.0** - 글리치 효과
    - 파라미터: glitchIntensity(1-20px), animationDuration(0.5-5s), glitchFrequency(0.1-1s), colorSeparation(boolean), noiseEffect(boolean)
 
-9. **flames** - 불꽃 효과 (GIF 기반)
+9. **flames@2.0.0** - 불꽃 효과 (GIF 기반)
    - 파라미터: baseOpacity(0-1), flicker(0-1), cycles(1-120)
 
-10. **pulse** - 펄스 효과
+10. **pulse@2.0.0** - 펄스 효과
     - 파라미터: maxScale(1-2.5), cycles(0-10)
 
 만약 카테고리가 명확하지 않다면 사용자에게 구체적인 예시를 제공하세요.
@@ -834,16 +834,16 @@ JSON patch 형태로 수정사항을 제공해주세요. 기존 구조를 유지
 실제 manifest 스키마에 따라 JSON patch를 생성하세요:
 
 예시 구조:
-- **rotation**: {{"rotationDegrees": 360, "animationDuration": 1.5, "axisY": true, "perspective": 800, "staggerDelay": 0.1}}
-- **fadein**: {{"staggerDelay": 0.1, "animationDuration": 0.8, "startOpacity": 0, "scaleStart": 0.9, "ease": "power2.out"}}
-- **typewriter**: {{"typingSpeed": 0.05, "cursorBlink": true, "cursorChar": "|", "showCursor": true}}
-- **glow**: {{"color": "#00ffff", "intensity": 0.4, "pulse": true, "cycles": 8}}
-- **scalepop**: {{"popScale": 1.5, "animationDuration": 1.2, "staggerDelay": 0.08, "bounceStrength": 0.6, "colorPop": true}}
-- **slideup**: {{"slideDistance": 30, "animationDuration": 1, "staggerDelay": 0.12, "easeType": "power2.out", "blurEffect": true}}
-- **elastic**: {{"bounceStrength": 0.7, "animationDuration": 1.5, "staggerDelay": 0.1, "startScale": 0, "overshoot": 1.3}}
-- **glitch**: {{"glitchIntensity": 5, "animationDuration": 2, "glitchFrequency": 0.3, "colorSeparation": true, "noiseEffect": true}}
-- **flames**: {{"baseOpacity": 0.8, "flicker": 0.3, "cycles": 12}}
-- **pulse**: {{"maxScale": 1.2, "cycles": 1}}
+- **rotation@2.0.0**: {{"rotationDegrees": 360, "animationDuration": 1.5, "axisY": true, "perspective": 800, "staggerDelay": 0.1}}
+- **fadein@2.0.0**: {{"staggerDelay": 0.1, "animationDuration": 0.8, "startOpacity": 0, "scaleStart": 0.9, "ease": "power2.out"}}
+- **typewriter@2.0.0**: {{"typingSpeed": 0.05, "cursorBlink": true, "cursorChar": "|", "showCursor": true}}
+- **glow@2.0.0**: {{"color": "#00ffff", "intensity": 0.4, "pulse": true, "cycles": 8}}
+- **scalepop@2.0.0**: {{"popScale": 1.5, "animationDuration": 1.2, "staggerDelay": 0.08, "bounceStrength": 0.6, "colorPop": true}}
+- **slideup@2.0.0**: {{"slideDistance": 30, "animationDuration": 1, "staggerDelay": 0.12, "easeType": "power2.out", "blurEffect": true}}
+- **elastic@2.0.0**: {{"bounceStrength": 0.7, "animationDuration": 1.5, "staggerDelay": 0.1, "startScale": 0, "overshoot": 1.3}}
+- **glitch@2.0.0**: {{"glitchIntensity": 5, "animationDuration": 2, "glitchFrequency": 0.3, "colorSeparation": true, "noiseEffect": true}}
+- **flames@2.0.0**: {{"baseOpacity": 0.8, "flicker": 0.3, "cycles": 12}}
+- **pulse@2.0.0**: {{"maxScale": 1.2, "cycles": 1}}
 
 응답 형식 (JSON patch):
 {{
@@ -1135,24 +1135,24 @@ JSON 형태로 응답:
 위의 MotionText v2.0 JSON에 애니메이션 효과를 추가하세요. RFC6902 JSON Patch 표준을 준수하여 출력하세요.
 
 사용 가능한 애니메이션:
-- **bobY**: 수직 바운싱 움직임 (amplitudePx, cycles)
-- **cwi-bouncing**: 바운싱 웨이브 (speaker, palette, color, waveHeight)
-- **cwi-color**: 색상 전환 효과 (speaker, palette, color, bulk)
-- **cwi-loud**: 큰 소리 애니메이션 (speaker, palette, color, pulse.scale, pulse.lift, tremble.ampPx, tremble.freq)
-- **cwi-whisper**: 속삭임 애니메이션 (speaker, palette, color, shrink.scale, shrink.drop, flutter.amp, flutter.freq)
-- **elastic**: 탄성 바운스 효과 (bounceStrength, animationDuration, staggerDelay, startScale, overshoot)
-- **fadein**: 페이드인 애니메이션 (staggerDelay, animationDuration, startOpacity, scaleStart, ease)
-- **flames**: 불꽃 효과 (baseOpacity, flicker, cycles)
-- **fliptype**: 플립 타이핑 애니메이션 (typingSpeed, flipDuration, flipAngle, flipDirection, typingDelay)
-- **glitch**: 글리치 효과 (glitchIntensity, animationDuration, glitchFrequency, colorSeparation, noiseEffect)
-- **glow**: 글로우 효과 (color, intensity, pulse, cycles)
-- **magnetic**: 자기 끌림 효과 (magnetStrength, animationDuration, attractionDelay, elasticity)
-- **pulse**: 펄스 애니메이션 (maxScale, cycles)
-- **rotation**: 3D 회전 효과 (rotationDegrees, animationDuration, staggerDelay, perspective, axisX, axisY, axisZ)
-- **scalepop**: 스케일 팝 효과 (popScale, animationDuration, staggerDelay, bounceStrength, colorPop)
-- **slideup**: 슬라이드업 애니메이션 (slideDistance, animationDuration, staggerDelay, easeType, blurEffect)
-- **spin**: 스핀 애니메이션 (fullTurns)
-- **typewriter**: 타이프라이터 효과 (typingSpeed, cursorBlink, cursorChar, showCursor, soundEffect)"""
+- **bobY@2.0.0**: 수직 바운싱 움직임 (amplitudePx, cycles)
+- **cwi-bouncing@2.0.0**: 바운싱 웨이브 (speaker, palette, color, waveHeight)
+- **cwi-color@2.0.0**: 색상 전환 효과 (speaker, palette, color, bulk)
+- **cwi-loud@2.0.0**: 큰 소리 애니메이션 (speaker, palette, color, pulse.scale, pulse.lift, tremble.ampPx, tremble.freq)
+- **cwi-whisper@2.0.0**: 속삭임 애니메이션 (speaker, palette, color, shrink.scale, shrink.drop, flutter.amp, flutter.freq)
+- **elastic@2.0.0**: 탄성 바운스 효과 (bounceStrength, animationDuration, staggerDelay, startScale, overshoot)
+- **fadein@2.0.0**: 페이드인 애니메이션 (staggerDelay, animationDuration, startOpacity, scaleStart, ease)
+- **flames@2.0.0**: 불꽃 효과 (baseOpacity, flicker, cycles)
+- **fliptype@2.0.0**: 플립 타이핑 애니메이션 (typingSpeed, flipDuration, flipAngle, flipDirection, typingDelay)
+- **glitch@2.0.0**: 글리치 효과 (glitchIntensity, animationDuration, glitchFrequency, colorSeparation, noiseEffect)
+- **glow@2.0.0**: 글로우 효과 (color, intensity, pulse, cycles)
+- **magnetic@2.0.0**: 자기 끌림 효과 (magnetStrength, animationDuration, attractionDelay, elasticity)
+- **pulse@2.0.0**: 펄스 애니메이션 (maxScale, cycles)
+- **rotation@2.0.0**: 3D 회전 효과 (rotationDegrees, animationDuration, staggerDelay, perspective, axisX, axisY, axisZ)
+- **scalepop@2.0.0**: 스케일 팝 효과 (popScale, animationDuration, staggerDelay, bounceStrength, colorPop)
+- **slideup@2.0.0**: 슬라이드업 애니메이션 (slideDistance, animationDuration, staggerDelay, easeType, blurEffect)
+- **spin@2.0.0**: 스핀 애니메이션 (fullTurns)
+- **typewriter@2.0.0**: 타이프라이터 효과 (typingSpeed, cursorBlink, cursorChar, showCursor, soundEffect)"""
 
             result = self.invoke_claude_with_chain(
                 prompt=animation_prompt,
@@ -1309,7 +1309,7 @@ ECG 주요 기능:
                         if isinstance(child, dict):
                             # cwi-loud 애니메이션 추가 (실제 플러그인 사용)
                             loud_plugin = {
-                                "pluginId": "cwi-loud",
+                                "pluginId": "cwi-loud@2.0.0",
                                 "timeOffset": ["0%", "100%"],
                                 "params": {
                                     "color": "#ff0000",
@@ -1320,7 +1320,7 @@ ECG 주요 기능:
 
                             # 추가로 glow 효과도 적용
                             glow_plugin = {
-                                "pluginId": "glow",
+                                "pluginId": "glow@2.0.0",
                                 "timeOffset": ["0%", "100%"],
                                 "params": {
                                     "color": "#ff4444",
@@ -1369,7 +1369,7 @@ ECG 주요 기능:
                         logger.info("📝 Processing root node directly")
 
                         loud_plugin = {
-                            "pluginId": "cwi-loud",
+                            "pluginId": "cwi-loud@2.0.0",
                             "timeOffset": ["0%", "100%"],
                             "params": {
                                 "color": "#ff0000",
@@ -1379,7 +1379,7 @@ ECG 주요 기능:
                         }
 
                         glow_plugin = {
-                            "pluginId": "glow",
+                            "pluginId": "glow@2.0.0",
                             "timeOffset": ["0%", "100%"],
                             "params": {
                                 "color": "#ff4444",
