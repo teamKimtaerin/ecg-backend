@@ -20,13 +20,14 @@ router = APIRouter(prefix="/chatbot", tags=["ChatBot"])
 
 def extract_summary_from_xml(xml_response: str) -> str:
     """
-    XML 응답에서 <summary> 태그 내용을 추출하여 사용자에게 표시할 메시지 생성
+    XML 응답에서 <summary> 태그 내용만 추출하여 사용자에게 표시할 메시지 생성
+    JSON patch, apply_order 등 기술적 내용은 제외
 
     Args:
         xml_response: Claude의 XML 형식 응답
 
     Returns:
-        str: 사용자에게 표시할 메시지 (summary 내용 또는 원본 텍스트)
+        str: 사용자에게 표시할 메시지 (summary 내용만)
     """
     import re
 
@@ -39,17 +40,36 @@ def extract_summary_from_xml(xml_response: str) -> str:
             logger.info(f"📝 Extracted summary for user display: {summary_content}")
             return summary_content
 
-    # summary 태그가 없거나 비어있는 경우
-    # XML 태그들을 제거하고 일반 텍스트만 추출
-    clean_text = re.sub(r"<[^>]+>", "", xml_response)
-    clean_text = re.sub(r"\[CDATA\[.*?\]\]", "", clean_text, flags=re.DOTALL)
+    # summary 태그가 없는 경우, 기술적 내용을 모두 제거하고 일반적인 메시지만 추출
+    # XML 태그들과 JSON patch 관련 내용 모두 제거
+    clean_text = xml_response
+
+    # XML 태그들 제거
+    clean_text = re.sub(
+        r"<json_patch_chunk[^>]*>.*?</json_patch_chunk>",
+        "",
+        clean_text,
+        flags=re.DOTALL,
+    )
+    clean_text = re.sub(
+        r"<apply_order>.*?</apply_order>", "", clean_text, flags=re.DOTALL
+    )
+    clean_text = re.sub(r"<!\[CDATA\[.*?\]\]>", "", clean_text, flags=re.DOTALL)
+    clean_text = re.sub(r"<[^>]+>", "", clean_text)
+
+    # JSON 패턴 제거 (남아있을 수 있는 JSON patch 내용)
+    clean_text = re.sub(r'\[[\s\S]*?"op"[\s\S]*?\]', "", clean_text)
+    clean_text = re.sub(r'\{[\s\S]*?"op"[\s\S]*?\}', "", clean_text)
+
+    # 여러 줄 공백 정리
+    clean_text = re.sub(r"\n\s*\n", "\n", clean_text)
     clean_text = clean_text.strip()
 
-    if clean_text:
+    if clean_text and len(clean_text) > 0:
         logger.info("📝 No summary found, using cleaned text for user display")
         return clean_text
     else:
-        logger.info("📝 Fallback to generic message")
+        logger.info("📝 Fallback to generic message (no user-friendly content found)")
         return "요청이 처리되었습니다."
 
 
@@ -220,9 +240,11 @@ async def chatbot_health_check() -> Dict[str, Any]:
         is_langchain_healthy = langchain_bedrock_service.test_connection()
 
         return {
-            "status": "healthy"
-            if (is_bedrock_healthy and is_langchain_healthy)
-            else "unhealthy",
+            "status": (
+                "healthy"
+                if (is_bedrock_healthy and is_langchain_healthy)
+                else "unhealthy"
+            ),
             "bedrock_connection": is_bedrock_healthy,
             "langchain_connection": is_langchain_healthy,
             "timestamp": time.time(),
