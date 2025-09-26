@@ -29,22 +29,22 @@ def extract_summary_from_xml(xml_response: str) -> str:
         str: 사용자에게 표시할 메시지 (summary 내용 또는 원본 텍스트)
     """
     import re
-    
+
     # summary 태그 추출 시도
     summary_match = re.search(r"<summary>(.*?)</summary>", xml_response, re.DOTALL)
-    
+
     if summary_match:
         summary_content = summary_match.group(1).strip()
         if summary_content:
             logger.info(f"📝 Extracted summary for user display: {summary_content}")
             return summary_content
-    
+
     # summary 태그가 없거나 비어있는 경우
     # XML 태그들을 제거하고 일반 텍스트만 추출
     clean_text = re.sub(r"<[^>]+>", "", xml_response)
     clean_text = re.sub(r"\[CDATA\[.*?\]\]", "", clean_text, flags=re.DOTALL)
     clean_text = clean_text.strip()
-    
+
     if clean_text:
         logger.info("📝 No summary found, using cleaned text for user display")
         return clean_text
@@ -152,7 +152,7 @@ async def send_chatbot_message(request: ChatBotRequest) -> ChatBotResponse:
 
         # summary 태그 내용 추출 (사용자에게 표시될 메시지)
         user_message = extract_summary_from_xml(result["completion"])
-        
+
         # 응답 구성
         response_data = {
             "completion": user_message,  # 사용자에게는 summary 내용만 표시
