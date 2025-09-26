@@ -74,7 +74,26 @@ class LangChainBedrockService:
 - style_edit: {{"op": "replace", "path": "/cues/0/root/style/color", "value": "#ff0000"}}
 - word_plugin_add: {{"op": "add", "path": "/cues/0/root/children/0/pluginChain/-", "value": {{"pluginId": "glow@2.0.0", "params": {{"color": "#00ffff", "intensity": 0.8}}}}}}
 - angry_emotion: {{"op": "add", "path": "/cues/0/root/children/0/pluginChain/-", "value": {{"pluginId": "cwi-loud@2.0.0", "timeOffset": [0, 0], "params": {{"color": "#ff0000", "pulse": {{"scale": 2.15, "lift": 12}}, "tremble": {{"ampPx": 1.5, "freq": 12}}}}}}}}
+- multi_word_animation: 여러 단어에 동일한 애니메이션 적용 시 각 단어마다 개별 patch 생성
+  [
+    {{"op": "add", "path": "/cues/0/root/children/0/pluginChain/-", "value": {{"pluginId": "glow@2.0.0", "params": {{"color": "#00ffff", "intensity": 0.8}}}}}},
+    {{"op": "add", "path": "/cues/0/root/children/1/pluginChain/-", "value": {{"pluginId": "glow@2.0.0", "params": {{"color": "#00ffff", "intensity": 0.8}}}}}},
+    {{"op": "add", "path": "/cues/0/root/children/2/pluginChain/-", "value": {{"pluginId": "glow@2.0.0", "params": {{"color": "#00ffff", "intensity": 0.8}}}}}}
+  ]
+- multi_word_emotion: 여러 단어에 감정 표현 적용
+  [
+    {{"op": "add", "path": "/cues/0/root/children/1/pluginChain/-", "value": {{"pluginId": "cwi-loud@2.0.0", "timeOffset": [0, 0], "params": {{"color": "#ff0000", "pulse": {{"scale": 2.15, "lift": 12}}, "tremble": {{"ampPx": 1.5, "freq": 12}}}}}}}},
+    {{"op": "add", "path": "/cues/0/root/children/2/pluginChain/-", "value": {{"pluginId": "cwi-loud@2.0.0", "timeOffset": [0, 0], "params": {{"color": "#ff0000", "pulse": {{"scale": 2.15, "lift": 12}}, "tremble": {{"ampPx": 1.5, "freq": 12}}}}}}}}
+  ]
 </common_patterns>
+
+<multi_word_handling>
+여러 단어 선택 시 규칙:
+1. 사용자가 "첫 번째와 세 번째 단어", "모든 단어", "단어들" 등으로 복수 단어를 언급하면 각 단어마다 개별 patch 생성
+2. 동일한 애니메이션을 여러 단어에 적용할 때는 각 children[N] 인덱스별로 별도의 add 연산 수행
+3. 예시: "첫 번째와 두 번째 단어에 glow 효과" → children[0]과 children[1]에 각각 glow 플러그인 추가
+4. 반드시 multi_word_animation 패턴 참조하여 여러 patch 생성
+</multi_word_handling>
 
 <output_format>
 <summary>선택사항: 총 N개 연산, 주요 변경사항</summary>
