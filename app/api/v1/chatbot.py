@@ -30,34 +30,41 @@ def extract_summary_from_xml(xml_response: str) -> str:
         str: 사용자에게 표시할 메시지 (summary 내용만)
     """
     import re
-    
+
     # summary 태그 추출 시도
     summary_match = re.search(r"<summary>(.*?)</summary>", xml_response, re.DOTALL)
-    
+
     if summary_match:
         summary_content = summary_match.group(1).strip()
         if summary_content:
             logger.info(f"📝 Extracted summary for user display: {summary_content}")
             return summary_content
-    
+
     # summary 태그가 없는 경우, 기술적 내용을 모두 제거하고 일반적인 메시지만 추출
     # XML 태그들과 JSON patch 관련 내용 모두 제거
     clean_text = xml_response
-    
+
     # XML 태그들 제거
-    clean_text = re.sub(r"<json_patch_chunk[^>]*>.*?</json_patch_chunk>", "", clean_text, flags=re.DOTALL)
-    clean_text = re.sub(r"<apply_order>.*?</apply_order>", "", clean_text, flags=re.DOTALL)
+    clean_text = re.sub(
+        r"<json_patch_chunk[^>]*>.*?</json_patch_chunk>",
+        "",
+        clean_text,
+        flags=re.DOTALL,
+    )
+    clean_text = re.sub(
+        r"<apply_order>.*?</apply_order>", "", clean_text, flags=re.DOTALL
+    )
     clean_text = re.sub(r"<!\[CDATA\[.*?\]\]>", "", clean_text, flags=re.DOTALL)
     clean_text = re.sub(r"<[^>]+>", "", clean_text)
-    
+
     # JSON 패턴 제거 (남아있을 수 있는 JSON patch 내용)
     clean_text = re.sub(r'\[[\s\S]*?"op"[\s\S]*?\]', "", clean_text)
     clean_text = re.sub(r'\{[\s\S]*?"op"[\s\S]*?\}', "", clean_text)
-    
+
     # 여러 줄 공백 정리
-    clean_text = re.sub(r'\n\s*\n', '\n', clean_text)
+    clean_text = re.sub(r"\n\s*\n", "\n", clean_text)
     clean_text = clean_text.strip()
-    
+
     if clean_text and len(clean_text) > 0:
         logger.info("📝 No summary found, using cleaned text for user display")
         return clean_text
@@ -165,7 +172,7 @@ async def send_chatbot_message(request: ChatBotRequest) -> ChatBotResponse:
 
         # summary 태그 내용 추출 (사용자에게 표시될 메시지)
         user_message = extract_summary_from_xml(result["completion"])
-        
+
         # 응답 구성
         response_data = {
             "completion": user_message,  # 사용자에게는 summary 내용만 표시
@@ -233,9 +240,11 @@ async def chatbot_health_check() -> Dict[str, Any]:
         is_langchain_healthy = langchain_bedrock_service.test_connection()
 
         return {
-            "status": "healthy"
-            if (is_bedrock_healthy and is_langchain_healthy)
-            else "unhealthy",
+            "status": (
+                "healthy"
+                if (is_bedrock_healthy and is_langchain_healthy)
+                else "unhealthy"
+            ),
             "bedrock_connection": is_bedrock_healthy,
             "langchain_connection": is_langchain_healthy,
             "timestamp": time.time(),
