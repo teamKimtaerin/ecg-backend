@@ -73,6 +73,7 @@ class LangChainBedrockService:
 - plugin_param_edit: {{"op": "replace", "path": "/cues/0/root/pluginChain/1/params/typingSpeed", "value": 0.1}}
 - style_edit: {{"op": "replace", "path": "/cues/0/root/style/color", "value": "#ff0000"}}
 - word_plugin_add: {{"op": "add", "path": "/cues/0/root/children/0/pluginChain/-", "value": {{"pluginId": "glow@2.0.0", "params": {{"color": "#00ffff", "intensity": 0.8}}}}}}
+- angry_emotion: {{"op": "add", "path": "/cues/0/root/children/0/pluginChain/-", "value": {{"pluginId": "cwi-loud@2.0.0", "timeOffset": [0, 0], "params": {{"color": "#ff0000", "pulse": {{"scale": 2.15, "lift": 12}}, "tremble": {{"ampPx": 1.5, "freq": 12}}}}}}}}
 </common_patterns>
 
 <output_format>
@@ -1138,7 +1139,7 @@ JSON 형태로 응답:
 - **bobY@2.0.0**: 수직 바운싱 움직임 (amplitudePx, cycles)
 - **cwi-bouncing@2.0.0**: 바운싱 웨이브 (speaker, palette, color, waveHeight)
 - **cwi-color@2.0.0**: 색상 전환 효과 (speaker, palette, color, bulk)
-- **cwi-loud@2.0.0**: 큰 소리 애니메이션 (speaker, palette, color, pulse.scale, pulse.lift, tremble.ampPx, tremble.freq)
+- **cwi-loud@2.0.0**: 화난 느낌/큰 소리 애니메이션 - 강렬한 감정 표현에 최적 (speaker, palette, color, pulse.scale, pulse.lift, tremble.ampPx, tremble.freq, timeOffset: [0,0])
 - **cwi-whisper@2.0.0**: 속삭임 애니메이션 (speaker, palette, color, shrink.scale, shrink.drop, flutter.amp, flutter.freq)
 - **elastic@2.0.0**: 탄성 바운스 효과 (bounceStrength, animationDuration, staggerDelay, startScale, overshoot)
 - **fadein@2.0.0**: 페이드인 애니메이션 (staggerDelay, animationDuration, startOpacity, scaleStart, ease)
@@ -1310,7 +1311,7 @@ ECG 주요 기능:
                             # cwi-loud 애니메이션 추가 (실제 플러그인 사용)
                             loud_plugin = {
                                 "pluginId": "cwi-loud@2.0.0",
-                                "timeOffset": ["0%", "100%"],
+                                "timeOffset": [0, 0],
                                 "params": {
                                     "color": "#ff0000",
                                     "pulse": {"scale": 2.15, "lift": 12},
@@ -1321,7 +1322,7 @@ ECG 주요 기능:
                             # 추가로 glow 효과도 적용
                             glow_plugin = {
                                 "pluginId": "glow@2.0.0",
-                                "timeOffset": ["0%", "100%"],
+                                "timeOffset": [0, 0],
                                 "params": {
                                     "color": "#ff4444",
                                     "intensity": 0.8,
@@ -1370,7 +1371,7 @@ ECG 주요 기능:
 
                         loud_plugin = {
                             "pluginId": "cwi-loud@2.0.0",
-                            "timeOffset": ["0%", "100%"],
+                            "timeOffset": [0, 0],
                             "params": {
                                 "color": "#ff0000",
                                 "pulse": {"scale": 2.15, "lift": 12},
@@ -1380,7 +1381,7 @@ ECG 주요 기능:
 
                         glow_plugin = {
                             "pluginId": "glow@2.0.0",
-                            "timeOffset": ["0%", "100%"],
+                            "timeOffset": [0, 0],
                             "params": {
                                 "color": "#ff4444",
                                 "intensity": 0.8,
