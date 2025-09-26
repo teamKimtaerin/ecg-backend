@@ -18,6 +18,41 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/chatbot", tags=["ChatBot"])
 
 
+def extract_summary_from_xml(xml_response: str) -> str:
+    """
+    XML 응답에서 <summary> 태그 내용을 추출하여 사용자에게 표시할 메시지 생성
+
+    Args:
+        xml_response: Claude의 XML 형식 응답
+
+    Returns:
+        str: 사용자에게 표시할 메시지 (summary 내용 또는 원본 텍스트)
+    """
+    import re
+
+    # summary 태그 추출 시도
+    summary_match = re.search(r"<summary>(.*?)</summary>", xml_response, re.DOTALL)
+
+    if summary_match:
+        summary_content = summary_match.group(1).strip()
+        if summary_content:
+            logger.info(f"📝 Extracted summary for user display: {summary_content}")
+            return summary_content
+
+    # summary 태그가 없거나 비어있는 경우
+    # XML 태그들을 제거하고 일반 텍스트만 추출
+    clean_text = re.sub(r"<[^>]+>", "", xml_response)
+    clean_text = re.sub(r"\[CDATA\[.*?\]\]", "", clean_text, flags=re.DOTALL)
+    clean_text = clean_text.strip()
+
+    if clean_text:
+        logger.info("📝 No summary found, using cleaned text for user display")
+        return clean_text
+    else:
+        logger.info("📝 Fallback to generic message")
+        return "요청이 처리되었습니다."
+
+
 def build_xml_request(request: ChatBotRequest) -> str:
     """
     ChatBot 요청을 통일된 XML 구조로 변환
@@ -115,9 +150,12 @@ async def send_chatbot_message(request: ChatBotRequest) -> ChatBotResponse:
             f"ChatBot response generated successfully in {processing_time_ms}ms"
         )
 
+        # summary 태그 내용 추출 (사용자에게 표시될 메시지)
+        user_message = extract_summary_from_xml(result["completion"])
+
         # 응답 구성
         response_data = {
-            "completion": result["completion"],
+            "completion": user_message,  # 사용자에게는 summary 내용만 표시
             "stop_reason": result["stop_reason"],
             "usage": result.get("usage"),
             "processing_time_ms": processing_time_ms,

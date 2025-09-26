@@ -79,7 +79,7 @@ class ChatBotResponse(BaseModel):
 
     completion: str = Field(
         ...,
-        description="Claude XML 응답 (<summary>, <json_patch_chunk>, <apply_order> 구조)",
+        description="사용자에게 표시할 메시지 (XML 응답의 <summary> 태그 내용 추출)",
     )
     stop_reason: str = Field(..., description="응답 종료 이유")
     usage: Optional[Dict[str, Any]] = Field(default=None, description="토큰 사용량 정보")
@@ -94,7 +94,7 @@ class ChatBotResponse(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "completion": '<summary>총 1개 연산, 자막 색상을 빨간색으로 변경</summary>\\n<json_patch_chunk index="1" total="1" ops="1">\\n<![CDATA[\\n[\\n  {\\n    "op": "replace",\\n    "path": "/cues/0/root/children/0/style/color",\\n    "value": "#ff0000"\\n  }\\n]\\n]]>\\n</json_patch_chunk>\\n<apply_order>1</apply_order>',
+                "completion": "총 1개 연산, 자막 색상을 빨간색으로 변경",
                 "stop_reason": "end_turn",
                 "usage": {"input_tokens": 120, "output_tokens": 280},
                 "processing_time_ms": 2100,
