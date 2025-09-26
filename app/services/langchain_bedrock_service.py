@@ -1472,7 +1472,7 @@ ECG 주요 기능:
             }
 
     def _parse_motion_text_editor_response(self, response_text: str) -> Dict[str, Any]:
-        """MotionTextEditor 표준 응답 파싱 (CDATA 형식 json_patch_chunk)"""
+        """MotionTextEditor 표준 응답 파싱 (CDATA 형식 또는 일반 텍스트 지원)"""
         try:
             import re
             import json
@@ -1498,20 +1498,33 @@ ECG 주요 기능:
             all_patches = []
 
             for chunk_content in chunks:
-                # CDATA 내용 추출
+                patch_json = ""
+
+                # 1. CDATA 형식 시도
                 cdata_match = re.search(
                     r"<!\[CDATA\[(.*?)\]\]>", chunk_content, re.DOTALL
                 )
                 if cdata_match:
                     patch_json = cdata_match.group(1).strip()
+                    logger.debug("Found CDATA format JSON patch")
+                else:
+                    # 2. 일반 텍스트 형식 시도
+                    patch_json = chunk_content.strip()
+                    logger.debug("Using plain text format JSON patch")
+
+                if patch_json:
                     try:
                         patches = json.loads(patch_json)
                         if isinstance(patches, list):
                             all_patches.extend(patches)
                         else:
                             all_patches.append(patches)
+                        logger.debug(
+                            f"Successfully parsed {len(patches) if isinstance(patches, list) else 1} patch(es)"
+                        )
                     except json.JSONDecodeError as e:
                         logger.warning(f"JSON parsing failed for chunk: {e}")
+                        logger.debug(f"Failed JSON content: {patch_json[:200]}...")
 
             logger.info(
                 f"✅ Parsed {len(all_patches)} patches from MotionTextEditor response"
