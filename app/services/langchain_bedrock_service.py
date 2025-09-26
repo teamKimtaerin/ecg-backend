@@ -1445,7 +1445,7 @@ ECG 주요 기능:
             logger.error(f"❌ Full traceback: {traceback.format_exc()}")
 
             # MotionTextEditor 표준 형식으로 에러 응답
-            error_response = f"""<summary>데모 모드 실행 중 오류 발생</summary>
+            error_response = """<summary>데모 모드 실행 중 오류 발생</summary>
 <json_patch_chunk index="1" total="1" ops="0">
 <![CDATA[
 []
