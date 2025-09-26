@@ -150,6 +150,18 @@ class LangChainBedrockService:
             Dict containing completion and metadata
         """
         try:
+            # 프롬프트 디버깅 로그 추가
+            logger.info(f"🔍 [DEBUG] Input prompt: '{prompt}'")
+            logger.info(
+                f"🔍 [DEBUG] Prompt ends with '!!': {prompt.strip().endswith('!!')}"
+            )
+            logger.info(f"🔍 [DEBUG] Scenario data present: {scenario_data is not None}")
+            if scenario_data:
+                logger.info(f"🔍 [DEBUG] Scenario data type: {type(scenario_data)}")
+                logger.info(
+                    f"🔍 [DEBUG] Scenario data keys: {list(scenario_data.keys()) if isinstance(scenario_data, dict) else 'not dict'}"
+                )
+
             # 데모 프롬프트 체크 ('!!'로 끝나는 경우)
             if prompt.strip().endswith("!!"):
                 logger.info(
@@ -1227,22 +1239,46 @@ ECG 주요 기능:
         """데모 프롬프트('!!'로 끝나는 경우) 처리 - 모든 단어에 Loud 애니메이션과 붉은 그라데이션 적용"""
         try:
             logger.info(
-                " Generating demo response with Loud animation and red gradient for all words"
+                "🎭 Generating demo response with Loud animation and red gradient for all words"
             )
+
+            # 시나리오 데이터 구조 디버깅
+            if scenario_data:
+                import json
+
+                logger.info(
+                    f"📊 Demo scenario data structure: {json.dumps(scenario_data, indent=2, ensure_ascii=False)[:1000]}..."
+                )
+                logger.info(f"📋 Scenario data keys: {list(scenario_data.keys())}")
+                if "cues" in scenario_data:
+                    logger.info(f"🎬 Cues count: {len(scenario_data['cues'])}")
+                    for i, cue in enumerate(scenario_data["cues"][:2]):  # 처음 2개만 로깅
+                        logger.info(
+                            f"🎯 Cue[{i}] structure: {json.dumps(cue, indent=2, ensure_ascii=False)[:500]}..."
+                        )
 
             if not scenario_data or "cues" not in scenario_data:
                 logger.warning("⚠️  No scenario data available for demo")
+                # MotionTextEditor 표준 형식으로 에러 응답
+                error_response = """<summary>데모 모드 실행 실패, 시나리오 데이터 없음</summary>
+<json_patch_chunk index="1" total="1" ops="0">
+<![CDATA[
+[]
+]]>
+</json_patch_chunk>
+<apply_order>1</apply_order>"""
                 return {
-                    "completion": "데모 모드가 활성화되었지만, 시나리오 데이터가 없어 적용할 수 없습니다.",
+                    "completion": error_response,
                     "stop_reason": "end_turn",
                     "usage": {"input_tokens": len(prompt.split()), "output_tokens": 20},
                     "model_id": self.llm.model_id,
                     "langchain_used": True,
                     "edit_result": {
-                        "type": "error",
+                        "type": "motion_text_edit",
                         "success": False,
                         "explanation": "시나리오 데이터가 없어 데모를 실행할 수 없습니다.",
                         "error": "No scenario data",
+                        "patches": [],
                     },
                     "json_patches": [],
                     "has_scenario_edits": False,
@@ -1251,11 +1287,26 @@ ECG 주요 기능:
             patches = []
             total_words_processed = 0
 
-            # 모든 cue를 순회하면서 단어들에 Loud 애니메이션과 붉은 그라데이션 적용
+            # 모든 cue를 순회하면서 텍스트 노드들에 Loud 애니메이션과 붉은 그라데이션 적용
             for cue_index, cue in enumerate(scenario_data.get("cues", [])):
-                if "root" in cue and "children" in cue["root"]:
-                    for child_index, child in enumerate(cue["root"]["children"]):
-                        if child.get("type") == "word":
+                logger.info(
+                    f"🔍 Processing cue[{cue_index}]: {json.dumps(cue, indent=2, ensure_ascii=False)[:300]}..."
+                )
+
+                if "root" in cue:
+                    root = cue["root"]
+                    logger.info(f"📝 Root keys: {list(root.keys())}")
+
+                    # children 배열이 있는 경우 처리
+                    if "children" in root and isinstance(root["children"], list):
+                        logger.info(f"👶 Children count: {len(root['children'])}")
+                        for child_index, child in enumerate(root["children"]):
+                            logger.info(
+                                f"🔎 Child[{child_index}] keys: {list(child.keys()) if isinstance(child, dict) else 'not dict'}"
+                            )
+
+                        # 모든 child 노드에 애니메이션 적용 (type 조건 제거)
+                        if isinstance(child, dict):
                             # cwi-loud 애니메이션 추가 (실제 플러그인 사용)
                             loud_plugin = {
                                 "pluginId": "cwi-loud",
@@ -1284,6 +1335,7 @@ ECG 주요 기능:
                                 "fill": "linear-gradient(45deg, #ff4444, #cc0000, #ff6666, #990000)",
                                 "fontWeight": "bold",
                                 "textShadow": "2px 2px 4px rgba(255, 0, 0, 0.5)",
+                                "color": "#ff0000",  # 기본 색상도 추가
                             }
 
                             # pluginChain에 여러 애니메이션 추가
@@ -1308,6 +1360,62 @@ ECG 주요 기능:
                             )
 
                             total_words_processed += 1
+                            logger.info(
+                                f"✅ Applied effects to child[{child_index}] in cue[{cue_index}]"
+                            )
+
+                    # 직접 root 노드에 텍스트가 있는 경우도 처리
+                    if "text" in root or "eType" in root:
+                        logger.info("📝 Processing root node directly")
+
+                        loud_plugin = {
+                            "pluginId": "cwi-loud",
+                            "timeOffset": ["0%", "100%"],
+                            "params": {
+                                "color": "#ff0000",
+                                "pulse": {"scale": 2.15, "lift": 12},
+                                "tremble": {"ampPx": 1.5, "freq": 12},
+                            },
+                        }
+
+                        glow_plugin = {
+                            "pluginId": "glow",
+                            "timeOffset": ["0%", "100%"],
+                            "params": {
+                                "color": "#ff4444",
+                                "intensity": 0.8,
+                                "pulse": True,
+                                "cycles": 8,
+                            },
+                        }
+
+                        # root 노드에 직접 적용
+                        patches.append(
+                            {
+                                "op": "add",
+                                "path": f"/cues/{cue_index}/root/pluginChain",
+                                "value": [loud_plugin, glow_plugin],
+                            }
+                        )
+
+                        patches.append(
+                            {
+                                "op": "replace",
+                                "path": f"/cues/{cue_index}/root/style",
+                                "value": {
+                                    **root.get("style", {}),
+                                    "fill": "linear-gradient(45deg, #ff4444, #cc0000, #ff6666, #990000)",
+                                    "fontWeight": "bold",
+                                    "textShadow": "2px 2px 4px rgba(255, 0, 0, 0.5)",
+                                    "color": "#ff0000",
+                                },
+                            }
+                        )
+
+                        total_words_processed += 1
+                        logger.info(
+                            f"✅ Applied effects to root node in cue[{cue_index}]"
+                        )
 
             logger.info(
                 f"🎯 Demo processing complete: {total_words_processed} words processed with cwi-loud + glow animations and red gradient"
@@ -1323,7 +1431,7 @@ ECG 주요 기능:
                 "edit_result": {
                     "type": "style_edit",
                     "success": True,
-                    "explanation": f" {total_words_processed}개 단어에 Loud 애니메이션과 붉은 그라데이션 효과를 일괄 적용했습니다.",
+                    "explanation": f"데모 모드로 {total_words_processed}개 노드에 Loud 애니메이션과 붉은 그라데이션 효과를 일괄 적용했습니다.",
                 },
                 "json_patches": patches,
                 "has_scenario_edits": True,
@@ -1332,17 +1440,31 @@ ECG 주요 기능:
 
         except Exception as e:
             logger.error(f"❌ Demo response generation failed: {e}")
+            import traceback
+
+            logger.error(f"❌ Full traceback: {traceback.format_exc()}")
+
+            # MotionTextEditor 표준 형식으로 에러 응답
+            error_response = f"""<summary>데모 모드 실행 중 오류 발생</summary>
+<json_patch_chunk index="1" total="1" ops="0">
+<![CDATA[
+[]
+]]>
+</json_patch_chunk>
+<apply_order>1</apply_order>"""
+
             return {
-                "completion": f"실행 중 오류가 발생했습니다: {str(e)}",
+                "completion": error_response,
                 "stop_reason": "end_turn",
                 "usage": {"input_tokens": len(prompt.split()), "output_tokens": 20},
                 "model_id": self.llm.model_id,
                 "langchain_used": True,
                 "edit_result": {
-                    "type": "error",
+                    "type": "motion_text_edit",
                     "success": False,
-                    "explanation": f"실행 실패: {str(e)}",
+                    "explanation": f"데모 모드 실행 실패: {str(e)}",
                     "error": str(e),
+                    "patches": [],
                 },
                 "json_patches": [],
                 "has_scenario_edits": False,
