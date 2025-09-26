@@ -1289,26 +1289,11 @@ ECG 주요 기능:
     def _generate_demo_response(
         self, scenario_data: Optional[Dict[str, Any]], prompt: str
     ) -> Dict[str, Any]:
-        """데모 프롬프트('!!'로 끝나는 경우) 처리 - 모든 단어에 Loud 애니메이션과 붉은 그라데이션 적용"""
+        """데모 프롬프트('!!'로 끝나는 경우) 처리 - 기존 plugin chain을 비우고 Claude가 채우도록 함"""
         try:
             logger.info(
-                "🎭 Generating demo response with Loud animation and red gradient for all words"
+                "🎭 Demo mode: Clearing existing plugin chains and letting Claude fill them"
             )
-
-            # 시나리오 데이터 구조 디버깅
-            if scenario_data:
-                import json
-
-                logger.info(
-                    f"📊 Demo scenario data structure: {json.dumps(scenario_data, indent=2, ensure_ascii=False)[:1000]}..."
-                )
-                logger.info(f"📋 Scenario data keys: {list(scenario_data.keys())}")
-                if "cues" in scenario_data:
-                    logger.info(f"🎬 Cues count: {len(scenario_data['cues'])}")
-                    for i, cue in enumerate(scenario_data["cues"][:2]):  # 처음 2개만 로깅
-                        logger.info(
-                            f"🎯 Cue[{i}] structure: {json.dumps(cue, indent=2, ensure_ascii=False)[:500]}..."
-                        )
 
             if not scenario_data or "cues" not in scenario_data:
                 logger.warning("⚠️  No scenario data available for demo")
@@ -1335,158 +1320,92 @@ ECG 주요 기능:
                     "has_scenario_edits": False,
                 }
 
-            patches = []
-            total_words_processed = 0
+            # Step 1: 기존 plugin chain 제거를 위한 patches 생성
+            import json
+            import copy
 
-            # 모든 cue를 순회하면서 텍스트 노드들에 Loud 애니메이션과 붉은 그라데이션 적용
-            for cue_index, cue in enumerate(scenario_data.get("cues", [])):
-                logger.info(
-                    f"🔍 Processing cue[{cue_index}]: {json.dumps(cue, indent=2, ensure_ascii=False)[:300]}..."
-                )
-
+            cleaned_scenario = copy.deepcopy(scenario_data)
+            clear_patches = []
+            
+            logger.info("🧹 Clearing existing plugin chains from scenario data")
+            
+            # 모든 cue와 children에서 pluginChain 제거
+            for cue_index, cue in enumerate(cleaned_scenario.get("cues", [])):
                 if "root" in cue:
                     root = cue["root"]
-                    logger.info(f"📝 Root keys: {list(root.keys())}")
-
-                    # children 배열이 있는 경우 처리
+                    
+                    # root의 pluginChain 제거
+                    if "pluginChain" in root:
+                        clear_patches.append({
+                            "op": "remove",
+                            "path": f"/cues/{cue_index}/root/pluginChain"
+                        })
+                        del root["pluginChain"]
+                    
+                    # children의 pluginChain 제거
                     if "children" in root and isinstance(root["children"], list):
-                        logger.info(f"👶 Children count: {len(root['children'])}")
                         for child_index, child in enumerate(root["children"]):
-                            logger.info(
-                                f"🔎 Child[{child_index}] keys: {list(child.keys()) if isinstance(child, dict) else 'not dict'}"
-                            )
+                            if isinstance(child, dict) and "pluginChain" in child:
+                                clear_patches.append({
+                                    "op": "remove", 
+                                    "path": f"/cues/{cue_index}/root/children/{child_index}/pluginChain"
+                                })
+                                del child["pluginChain"]
+            
+            logger.info(f"🧹 Generated {len(clear_patches)} clear patches for existing plugin chains")
 
-                        # 모든 child 노드에 애니메이션 적용 (type 조건 제거)
-                        if isinstance(child, dict):
-                            # cwi-loud 애니메이션 추가 (실제 플러그인 사용)
-                            loud_plugin = {
-                                "pluginId": "cwi-loud@2.0.0",
-                                "timeOffset": [0, 0],
-                                "params": {
-                                    "color": "#ff0000",
-                                    "pulse": {"scale": 2.15, "lift": 12},
-                                    "tremble": {"ampPx": 1.5, "freq": 12},
-                                },
-                            }
+            # Step 2: Claude에게 plugin 추가 요청
+            cleaned_scenario_json = json.dumps(cleaned_scenario, indent=2, ensure_ascii=False)
+            
+            demo_prompt = f"""<user_instruction>데모 모드: 모든 단어와 텍스트에 화난 감정을 표현하는 강렬한 애니메이션 효과를 추가해주세요. cwi-loud@2.0.0 애니메이션과 붉은 색상 계열의 glow 효과를 적용하여 역동적이고 눈에 띄는 효과를 만들어주세요.</user_instruction>
 
-                            # 추가로 glow 효과도 적용
-                            glow_plugin = {
-                                "pluginId": "glow@2.0.0",
-                                "timeOffset": [0, 0],
-                                "params": {
-                                    "color": "#ff4444",
-                                    "intensity": 0.8,
-                                    "pulse": True,
-                                    "cycles": 8,
-                                },
-                            }
+<current_json>
+{cleaned_scenario_json}
+</current_json>
 
-                            # 붉은 그라데이션 색상 스타일 추가
-                            red_gradient_style = {
-                                "fill": "linear-gradient(45deg, #ff4444, #cc0000, #ff6666, #990000)",
-                                "fontWeight": "bold",
-                                "textShadow": "2px 2px 4px rgba(255, 0, 0, 0.5)",
-                                "color": "#ff0000",  # 기본 색상도 추가
-                            }
+위의 MotionText v2.0 JSON에 강렬한 애니메이션 효과를 추가하세요. RFC6902 JSON Patch 표준을 준수하여 출력하세요."""
 
-                            # pluginChain에 여러 애니메이션 추가
-                            patches.append(
-                                {
-                                    "op": "add",
-                                    "path": f"/cues/{cue_index}/root/children/{child_index}/pluginChain",
-                                    "value": [loud_plugin, glow_plugin],
-                                }
-                            )
-
-                            # 스타일에 붉은 그라데이션 추가
-                            patches.append(
-                                {
-                                    "op": "replace",
-                                    "path": f"/cues/{cue_index}/root/children/{child_index}/style",
-                                    "value": {
-                                        **child.get("style", {}),
-                                        **red_gradient_style,
-                                    },
-                                }
-                            )
-
-                            total_words_processed += 1
-                            logger.info(
-                                f"✅ Applied effects to child[{child_index}] in cue[{cue_index}]"
-                            )
-
-                    # 직접 root 노드에 텍스트가 있는 경우도 처리
-                    if "text" in root or "eType" in root:
-                        logger.info("📝 Processing root node directly")
-
-                        loud_plugin = {
-                            "pluginId": "cwi-loud@2.0.0",
-                            "timeOffset": [0, 0],
-                            "params": {
-                                "color": "#ff0000",
-                                "pulse": {"scale": 2.15, "lift": 12},
-                                "tremble": {"ampPx": 1.5, "freq": 12},
-                            },
-                        }
-
-                        glow_plugin = {
-                            "pluginId": "glow@2.0.0",
-                            "timeOffset": [0, 0],
-                            "params": {
-                                "color": "#ff4444",
-                                "intensity": 0.8,
-                                "pulse": True,
-                                "cycles": 8,
-                            },
-                        }
-
-                        # root 노드에 직접 적용
-                        patches.append(
-                            {
-                                "op": "add",
-                                "path": f"/cues/{cue_index}/root/pluginChain",
-                                "value": [loud_plugin, glow_plugin],
-                            }
-                        )
-
-                        patches.append(
-                            {
-                                "op": "replace",
-                                "path": f"/cues/{cue_index}/root/style",
-                                "value": {
-                                    **root.get("style", {}),
-                                    "fill": "linear-gradient(45deg, #ff4444, #cc0000, #ff6666, #990000)",
-                                    "fontWeight": "bold",
-                                    "textShadow": "2px 2px 4px rgba(255, 0, 0, 0.5)",
-                                    "color": "#ff0000",
-                                },
-                            }
-                        )
-
-                        total_words_processed += 1
-                        logger.info(
-                            f"✅ Applied effects to root node in cue[{cue_index}]"
-                        )
-
-            logger.info(
-                f"🎯 Demo processing complete: {total_words_processed} words processed with cwi-loud + glow animations and red gradient"
+            logger.info("🤖 Requesting Claude to add plugin chains for demo mode")
+            
+            result = self.invoke_claude_with_chain(
+                prompt=demo_prompt,
+                max_tokens=2000,
+                temperature=0.3,
             )
 
-            # 데모 응답 반환
-            return {
-                "completion": f"총 {total_words_processed}개의 단어에 cwi-loud (펄스+진동) + glow (글로우) 애니메이션과 화난 느낌의 붉은 그라데이션을 적용했습니다. 강렬하고 역동적인 효과로 시청자의 시선을 사로잡을 것입니다!",
-                "stop_reason": "end_turn",
-                "usage": {"input_tokens": len(prompt.split()), "output_tokens": 50},
-                "model_id": self.llm.model_id,
-                "langchain_used": True,
-                "edit_result": {
-                    "type": "style_edit",
-                    "success": True,
-                },
-                "json_patches": patches,
-                "has_scenario_edits": True,
-                "demo_mode": True,
-            }
+            # Claude 응답 파싱
+            motion_result = self._parse_motion_text_editor_response(
+                result["completion"]
+            )
+            
+            if motion_result["success"] and "patches" in motion_result:
+                # 기존 clear_patches와 Claude의 patches 합치기
+                all_patches = clear_patches + motion_result["patches"]
+                
+                logger.info(f"✅ Demo completed: {len(clear_patches)} clear + {len(motion_result['patches'])} Claude patches")
+                
+                return {
+                    "completion": result["completion"],
+                    "stop_reason": result["stop_reason"],
+                    "usage": result.get("usage", {"input_tokens": len(demo_prompt.split()), "output_tokens": 100}),
+                    "model_id": result.get("model_id", self.llm.model_id),
+                    "langchain_used": True,
+                    "json_patches": all_patches,
+                    "has_scenario_edits": True,
+                    "demo_mode": True,
+                }
+            else:
+                logger.warning("⚠️ Claude failed to generate demo patches")
+                return {
+                    "completion": "데모 모드 실행 중 오류가 발생했습니다.",
+                    "stop_reason": "end_turn", 
+                    "usage": {"input_tokens": len(demo_prompt.split()), "output_tokens": 20},
+                    "model_id": self.llm.model_id,
+                    "langchain_used": True,
+                    "json_patches": clear_patches,  # 최소한 기존 것은 제거
+                    "has_scenario_edits": True,
+                    "demo_mode": True,
+                }
 
         except Exception as e:
             logger.error(f"❌ Demo response generation failed: {e}")
