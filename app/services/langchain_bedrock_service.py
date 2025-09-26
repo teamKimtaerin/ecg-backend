@@ -616,6 +616,9 @@ class LangChainBedrockService:
             )
 
             if motion_result["success"] and "patches" in motion_result:
+                # plugin 형식 변환 적용
+                transformed_patches = self._transform_json_patches(motion_result["patches"])
+                
                 # 성공적으로 파싱된 경우
                 return {
                     "completion": result["completion"],
@@ -623,8 +626,8 @@ class LangChainBedrockService:
                     "usage": result.get("usage"),
                     "model_id": result.get("model_id"),
                     "langchain_used": True,
-                    "json_patches": motion_result["patches"],
-                    "has_scenario_edits": bool(motion_result["patches"]),
+                    "json_patches": transformed_patches,
+                    "has_scenario_edits": bool(transformed_patches),
                 }
             else:
                 # 파싱 실패 또는 일반 대화인 경우
@@ -1387,11 +1390,14 @@ ECG 주요 기능:
             )
 
             if motion_result["success"] and "patches" in motion_result:
-                # 기존 clear_patches와 Claude의 patches 합치기
-                all_patches = clear_patches + motion_result["patches"]
+                # plugin 형식 변환 적용
+                transformed_claude_patches = self._transform_json_patches(motion_result["patches"])
+                
+                # 기존 clear_patches와 변환된 Claude patches 합치기
+                all_patches = clear_patches + transformed_claude_patches
 
                 logger.info(
-                    f"✅ Demo completed: {len(clear_patches)} clear + {len(motion_result['patches'])} Claude patches"
+                    f"✅ Demo completed: {len(clear_patches)} clear + {len(transformed_claude_patches)} Claude patches (transformed)"
                 )
 
                 return {
@@ -1516,13 +1522,16 @@ ECG 주요 기능:
                 f"✅ Parsed {len(all_patches)} patches from MotionTextEditor response"
             )
 
+            # plugin 형식 변환 적용
+            transformed_patches = self._transform_json_patches(all_patches)
+            
             return {
                 "type": "motion_text_edit",
                 "summary": summary or "MotionTextEditor 표준 응답 처리 완료",
                 "apply_order": apply_order,
-                "success": len(all_patches) > 0,
+                "success": len(transformed_patches) > 0,
                 "langchain_used": True,
-                "patches": all_patches,  # 내부 처리용으로만 사용
+                "patches": transformed_patches,  # 변환된 형식으로 전달
             }
 
         except Exception as e:
@@ -1548,6 +1557,73 @@ ECG 주요 기능:
                 "error": f"응답 파싱 실패: {str(e)}",
                 "langchain_used": True,
             }
+
+    def _transform_plugin_format(self, plugin_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Claude가 생성한 plugin 정보를 프론트엔드 형식으로 변환
+        
+        From: {"pluginId": "cwi-loud@2.0.0", "timeOffset": [0, 0], "params": {...}}
+        To: {"name": "cwi-loud", "params": {...}, "timeOffset": [...]}
+        """
+        try:
+            # pluginId에서 name 추출 (버전 제거)
+            plugin_id = plugin_data.get("pluginId", "")
+            name = plugin_id.split("@")[0] if "@" in plugin_id else plugin_id
+            
+            # 새로운 형식으로 변환
+            transformed = {
+                "name": name,
+                "params": plugin_data.get("params", {}),
+                "timeOffset": plugin_data.get("timeOffset", [0, 0])
+            }
+            
+            logger.debug(f"🔄 Transformed plugin: {plugin_id} -> {name}")
+            return transformed
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Plugin transformation failed: {e}")
+            # fallback: 원본 데이터 반환
+            return plugin_data
+    
+    def _transform_json_patches(self, patches: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        JSON patches에서 plugin 관련 데이터를 새로운 형식으로 변환
+        """
+        try:
+            transformed_patches = []
+            
+            for patch in patches:
+                transformed_patch = patch.copy()
+                
+                # pluginChain 관련 patch인지 확인
+                if (patch.get("op") == "add" and 
+                    "pluginChain" in patch.get("path", "") and 
+                    "value" in patch):
+                    
+                    value = patch["value"]
+                    
+                    # 단일 plugin 객체인 경우
+                    if isinstance(value, dict) and "pluginId" in value:
+                        transformed_patch["value"] = self._transform_plugin_format(value)
+                    
+                    # plugin 배열인 경우
+                    elif isinstance(value, list):
+                        transformed_value = []
+                        for item in value:
+                            if isinstance(item, dict) and "pluginId" in item:
+                                transformed_value.append(self._transform_plugin_format(item))
+                            else:
+                                transformed_value.append(item)
+                        transformed_patch["value"] = transformed_value
+                
+                transformed_patches.append(transformed_patch)
+            
+            logger.info(f"🔄 Transformed {len(patches)} patches with plugin format conversion")
+            return transformed_patches
+            
+        except Exception as e:
+            logger.error(f"❌ JSON patch transformation failed: {e}")
+            return patches  # fallback: 원본 반환
 
     def _estimate_token_count(self, text: str) -> int:
         """토큰 수 추정 (대략적 계산)"""
