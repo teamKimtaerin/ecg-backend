@@ -591,7 +591,7 @@ class LangChainBedrockService:
         temperature: float = 0.3,
     ) -> Dict[str, Any]:
         """
-        ECG 자막 애니메이션 처리를 위한 특화된 순차 체인
+        HOIT 자막 애니메이션 처리를 위한 특화된 순차 체인
         Prompt.md의 워크플로우를 따름
 
         Args:
@@ -604,7 +604,7 @@ class LangChainBedrockService:
             Dict: 단계별 처리 결과와 최종 JSON patch
         """
         try:
-            logger.info("Starting ECG subtitle animation chain")
+            logger.info("Starting HOIT subtitle animation chain")
 
             # 단계 1: 메시지 유형 분류
             classification_prompt = f"""다음 사용자 메시지를 분석하여 유형을 분류해주세요:
@@ -686,12 +686,12 @@ class LangChainBedrockService:
                     "📚 Processing as SIMPLE_INFO request - providing general information"
                 )
                 # 단순 정보 요청 - 바로 응답
-                info_prompt = f"""ECG 자막 편집 도구에 대한 질문에 답변해주세요:
+                info_prompt = f"""HOIT 자막 편집 도구에 대한 질문에 답변해주세요:
 
 질문: {user_message}
 
-ECG 주요 기능:
-- 자동 자막 생성 (AI 음성 인식)
+HOIT 주요 기능:
+- 자동 자막 생성
 - 실시간 자막 편집
 - 다양한 애니메이션 효과
 - 화자 분리 및 관리
@@ -1432,7 +1432,7 @@ ECG 주요 기능:
                 "edit_result": {
                     "type": "style_edit",
                     "success": True,
-                    "explanation": f"데모 모드로 {total_words_processed}개 노드에 Loud 애니메이션과 붉은 그라데이션 효과를 일괄 적용했습니다.",
+                    "explanation": f"{total_words_processed}개 단어에 Loud 애니메이션과 붉은 그라데이션 효과를 일괄 적용했습니다.",
                 },
                 "json_patches": patches,
                 "has_scenario_edits": True,

@@ -43,7 +43,7 @@ class ChatBotRequest(BaseModel):
                     },
                     {
                         "id": "2",
-                        "content": "안녕하세요! ECG 자막 편집 도구에 대해 도움을 드릴 수 있습니다.",
+                        "content": "안녕하세요! HOIT 자막 편집 도구에 대해 도움을 드릴 수 있습니다.",
                         "sender": "bot",
                         "timestamp": "2024-01-01T00:00:01Z",
                     },

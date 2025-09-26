@@ -17,7 +17,7 @@ import os
 import logging
 import time
 
-app = FastAPI(title="ECG Backend API", version="1.0.0")
+app = FastAPI(title="HOIT Backend API", version="1.0.0")
 
 # Rate limiting 설정
 limiter = Limiter(key_func=get_remote_address)
@@ -251,12 +251,12 @@ app.include_router(api_router)  # /api/v1 (assets, ml, admin, plugins, chatbot)
 
 @app.get("/")
 async def root():
-    return {"message": "ECG Backend API", "version": "1.0.0"}
+    return {"message": "HOIT Backend API", "version": "1.0.0"}
 
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy", "service": "ECG Backend"}
+    return {"status": "healthy", "service": "HOIT Backend"}
 
 
 if __name__ == "__main__":

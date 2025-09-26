@@ -28,11 +28,11 @@ def build_context_prompt(request: ChatBotRequest) -> str:
     Returns:
         str: 완성된 프롬프트
     """
-    system_prompt = """당신은 ECG(Easy Caption Generator) 자막 편집 도구의 AI 어시스턴트 "둘리"입니다.
+    system_prompt = """당신은 HOIT 자막 편집 도구의 AI 어시스턴트 "둘리"입니다.
 
 주요 역할:
 1. 자막 편집 관련 질문에 친절하고 정확하게 답변
-2. ECG 도구의 기능 사용법 안내
+2. HOIT 도구의 기능 사용법 안내
 3. 자막 작업 효율성 개선 팁 제공
 4. 기술적 문제 해결 도움
 
@@ -42,7 +42,7 @@ def build_context_prompt(request: ChatBotRequest) -> str:
 - 단계별 설명이 필요한 경우 명확한 순서로 안내
 - 한국어로 자연스럽게 대화
 
-ECG 주요 기능:
+HOIT 주요 기능:
 - 자동 자막 생성 (AI 음성 인식)
 - 실시간 자막 편집
 - 다양한 애니메이션 효과
@@ -78,7 +78,7 @@ ECG 주요 기능:
         503: {"model": ChatBotErrorResponse, "description": "외부 서비스 이용 불가"},
     },
     summary="ChatBot 메시지 전송",
-    description="ECG ChatBot과 대화를 나누는 API 엔드포인트입니다. 자막 편집 관련 질문에 답변합니다.",
+    description="HOIT ChatBot과 대화를 나누는 API 엔드포인트입니다. 자막 편집 관련 질문에 답변합니다.",
 )
 async def send_chatbot_message(request: ChatBotRequest) -> ChatBotResponse:
     """
@@ -195,7 +195,7 @@ async def chatbot_health_check() -> Dict[str, Any]:
             "bedrock_connection": is_bedrock_healthy,
             "langchain_connection": is_langchain_healthy,
             "timestamp": time.time(),
-            "service": "ECG ChatBot API",
+            "service": "HOIT ChatBot API",
         }
 
     except Exception as e:
@@ -206,5 +206,5 @@ async def chatbot_health_check() -> Dict[str, Any]:
             "langchain_connection": False,
             "error": str(e),
             "timestamp": time.time(),
-            "service": "ECG ChatBot API",
+            "service": "HOIT ChatBot API",
         }

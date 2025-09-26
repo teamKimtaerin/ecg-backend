@@ -5,7 +5,7 @@ from pydantic import Field, validator
 
 class Settings(BaseSettings):
     # App Settings
-    app_name: str = Field(default="ECG Backend", description="Application name")
+    app_name: str = Field(default="HOIT Backend", description="Application name")
     debug: bool = Field(default=False, description="Debug mode")
     secret_key: str = Field(..., description="Application secret key")
     mode: str = Field(default="dev", description="Application mode")

@@ -159,7 +159,7 @@ async def cancel_gpu_job(job_id: str):
                 f"{GPU_RENDER_SERVER_URL}/api/render/{job_id}/cancel",
                 headers={
                     "Content-Type": "application/json",
-                    "User-Agent": "ECG-Backend/1.0",
+                    "User-Agent": "HOIT-Backend/1.0",
                 },
             ) as response:
                 if response.status == 200:
