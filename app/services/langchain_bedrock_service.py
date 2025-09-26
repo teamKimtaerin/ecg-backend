@@ -1540,8 +1540,8 @@ ECG 주요 기능:
                         "langchain_used": True,
                         "fallback_parsing": True,
                     }
-            except Exception:
-                pass
+            except Exception as fallback_error:
+                logger.debug(f"Legacy JSON parsing also failed: {fallback_error}")
 
             return {
                 "type": "motion_text_edit",
